@@ -1,0 +1,50 @@
+<svg width="820" height="440" viewBox="0 0 820 440" xmlns="http://www.w3.org/2000/svg" font-family="'SF Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace">
+  <rect width="820" height="440" rx="12" fill="#0f1117"/>
+
+  <text x="40" y="52" fill="#e6e9ef" font-size="26" font-weight="700">harness-downshift</text>
+  <text x="40" y="80" fill="#8b93a7" font-size="14">Right-sized models for every subagent task.</text>
+  <text x="40" y="100" fill="#8b93a7" font-size="14">Downshift on the straights, power through the curves.</text>
+
+  <line x1="40" y1="124" x2="780" y2="124" stroke="#242835" stroke-width="1"/>
+
+  <text x="40" y="156" fill="#5b6373" font-size="12">TASK COMPLEXITY</text>
+  <text x="560" y="156" fill="#5b6373" font-size="12">GEAR (MODEL)</text>
+
+  <g font-size="14">
+    <rect x="40" y="172" width="700" height="42" rx="8" fill="#12331f"/>
+    <text x="58" y="198" fill="#7ee2a8" font-weight="700">TRIVIAL</text>
+    <text x="150" y="198" fill="#9aa4b8">rename var · fix typo · git commit</text>
+    <text x="560" y="198" fill="#7ee2a8" font-weight="700">haiku</text>
+    <text x="640" y="198" fill="#5b6373">$0.80 / 1M</text>
+    <text x="726" y="198" fill="#7ee2a8" text-anchor="end">▼</text>
+  </g>
+
+  <g font-size="14">
+    <rect x="40" y="224" width="700" height="42" rx="8" fill="#1a2740"/>
+    <text x="58" y="250" fill="#7fb0ff" font-weight="700">SIMPLE</text>
+    <text x="150" y="250" fill="#9aa4b8">add field · fix bug · one function</text>
+    <text x="560" y="250" fill="#7fb0ff" font-weight="700">sonnet</text>
+    <text x="640" y="250" fill="#5b6373">$3 / 1M</text>
+  </g>
+
+  <g font-size="14">
+    <rect x="40" y="276" width="700" height="42" rx="8" fill="#1a2740"/>
+    <text x="58" y="302" fill="#7fb0ff" font-weight="700">MEDIUM</text>
+    <text x="150" y="302" fill="#9aa4b8">refactor module · feature across files</text>
+    <text x="560" y="302" fill="#7fb0ff" font-weight="700">sonnet</text>
+    <text x="640" y="302" fill="#5b6373">$3 / 1M</text>
+  </g>
+
+  <g font-size="14">
+    <rect x="40" y="328" width="700" height="42" rx="8" fill="#3a1f2b"/>
+    <text x="58" y="354" fill="#ff9db2" font-weight="700">COMPLEX</text>
+    <text x="150" y="354" fill="#9aa4b8">rearchitect · migration · race condition</text>
+    <text x="560" y="354" fill="#ff9db2" font-weight="700">opus</text>
+    <text x="640" y="354" fill="#5b6373">$15 / 1M</text>
+    <text x="726" y="354" fill="#ff9db2" text-anchor="end">▲</text>
+  </g>
+
+  <line x1="40" y1="392" x2="780" y2="392" stroke="#242835" stroke-width="1"/>
+  <text x="40" y="418" fill="#7ee2a8" font-size="13" font-weight="700">~95% cheaper</text>
+  <text x="150" y="418" fill="#8b93a7" font-size="13">on trivial subagents — the same work, the right gear.</text>
+</svg>

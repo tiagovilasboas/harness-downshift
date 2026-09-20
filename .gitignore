@@ -1,0 +1,25 @@
+# Binaries
+downshift
+*.exe
+*.dll
+*.so
+*.dylib
+dist/
+
+# Test
+*.out
+coverage.html
+coverage.out
+
+# Go
+go.work
+go.work.sum
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Local
+*.log
