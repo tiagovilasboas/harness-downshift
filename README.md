@@ -20,6 +20,29 @@ cost optimization · Claude Code hooks · Cursor subagents · Codex model select
 
 ---
 
+## This is harness engineering
+
+> *"Agent = Model + Harness."* — [Martin Fowler](https://martinfowler.com/articles/harness-engineering.html)
+
+The **harness** is everything around the model that turns it into a working
+agent: the loop, the tools, context assembly, and — the part this project cares
+about — **how it delegates work to subagents**. Recent research names the
+harness as *"the decisive lever against token maxing"*
+([arXiv:2607.06906](https://arxiv.org/abs/2607.06906)).
+
+`harness-downshift` is a focused piece of harness engineering. It doesn't touch
+the model's reasoning; it engineers the **delegation layer** — the exact point
+where a subagent's model is chosen — to optimize three things at once:
+
+- **Token efficiency** — cheap models for cheap work; frontier tokens spent only where they earn it.
+- **Cost reduction** — trivial subagents drop from frontier to small tier (~95% cheaper per call).
+- **Control & predictability** — deterministic, rule-based routing you can read, test, and audit. No "Auto" black box, no LLM guessing in the loop.
+
+Agent = Model + Harness. You can't cheaply swap the model. You *can* engineer
+the harness. That's the whole game here.
+
+---
+
 ## The pain it's born from
 
 Agentic coding got expensive fast, and the biggest line item is invisible:
@@ -158,15 +181,22 @@ hard.
 
 ## Design principles
 
+These are harness-engineering principles first, implementation choices second:
+
+- **Deterministic over probabilistic.** Routing is scored rules you can read
+  and test — not another model guessing. A harness you can't predict is a
+  harness you can't trust with your budget.
+- **Zero token overhead.** Classification is local pattern-matching. The router
+  adds no LLM calls to the loop — it optimizes token spend without spending
+  tokens to do it.
 - **Fail-open.** A parse error, an unknown model, a bad event — any failure
-  lets the subagent run unchanged. `downshift` never blocks your work.
-- **No tokens spent.** Classification is local pattern-matching. The router adds
-  zero LLM calls to your loop.
+  lets the subagent run unchanged. A cost optimizer must never become an
+  availability risk.
 - **Single binary.** Go, cross-compiled for macOS / Linux / Windows. No Python,
-  no Node, no runtime to install.
-- **Honest about limits.** It controls subagent models, not your main turn.
-  It's a heuristic classifier, not a perfect judge. The README says so on
-  purpose.
+  no Node, no runtime. The harness layer should be boring and dependable.
+- **Honest about limits.** It engineers the delegation layer — subagent models
+  — not your main turn. It's a heuristic classifier, not an oracle. Good
+  harness engineering states its blast radius.
 
 ---
 
