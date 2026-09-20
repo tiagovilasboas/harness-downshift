@@ -1,5 +1,9 @@
 # harness-downshift
 
+> **Cut Claude Code subagent costs** by routing every subagent to the
+> right-sized model for its task. A deterministic model router that runs as a
+> hook — no extra tokens, no LLM in the loop, single Go binary.
+
 ![harness-downshift](docs/img/hero.svg)
 
 **Your subagents are running Opus to rename a variable. You're paying frontier
@@ -10,6 +14,9 @@ the cheap model. Hard work gets the frontier model's torque. You stop burning
 budget on the straights and keep the power for the curves.
 
 Works with Claude Code today. Cursor, Codex, and any harness with subagents next.
+
+**Keywords:** Claude Code subagent cost · LLM model routing · agent harness ·
+cost optimization · Claude Code hooks · Cursor subagents · Codex model selection
 
 ---
 
