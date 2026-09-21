@@ -46,9 +46,6 @@ func TestHandle_DownshiftsTrivialSubagent(t *testing.T) {
 	if note == "" {
 		t.Fatal("expected a downshift note, got none")
 	}
-	if !out.Continue {
-		t.Error("continue must be true on allow")
-	}
 	if out.HookSpecificOutput.PermissionDecision != "allow" {
 		t.Errorf("permissionDecision = %s, want allow", out.HookSpecificOutput.PermissionDecision)
 	}
@@ -104,9 +101,6 @@ func TestHandle_OKKeepsGear(t *testing.T) {
 	if out.HookSpecificOutput.UpdatedInput != nil {
 		t.Error("must not rewrite when gear is already right")
 	}
-	if !out.Continue {
-		t.Error("continue must be true on a plain allow")
-	}
 }
 
 func TestHandle_IgnoresNonSpawnTools(t *testing.T) {
@@ -124,8 +118,8 @@ func TestHandle_IgnoresNonSpawnTools(t *testing.T) {
 func TestHandle_MatchesFlattenedNamespacedToolName(t *testing.T) {
 	frontierID := catID(core.TierFrontier)
 	ev := codex.Event{
-		ToolName: "collaborationspawn_agent",
-		Model:    frontierID,
+		ToolName:  "collaborationspawn_agent",
+		Model:     frontierID,
 		ToolInput: json.RawMessage(`{"message": "fix a typo in the readme"}`),
 	}
 	out, note := codex.Handle(ev, cat)
@@ -142,8 +136,8 @@ func TestHandle_MatchesFlattenedNamespacedToolName(t *testing.T) {
 func TestHandle_MatchesAgentToolName(t *testing.T) {
 	frontierID := catID(core.TierFrontier)
 	ev := codex.Event{
-		ToolName: "Agent",
-		Model:    frontierID,
+		ToolName:  "Agent",
+		Model:     frontierID,
 		ToolInput: json.RawMessage(`{"message": "rename a private helper method"}`),
 	}
 	_, note := codex.Handle(ev, cat)
@@ -175,8 +169,8 @@ func TestHandle_TaskNameAddsSignal(t *testing.T) {
 func TestHandle_FallsBackToEventModel(t *testing.T) {
 	frontierID := catID(core.TierFrontier)
 	ev := codex.Event{
-		ToolName: "spawn_agent",
-		Model:    frontierID,
+		ToolName:  "spawn_agent",
+		Model:     frontierID,
 		ToolInput: json.RawMessage(`{"message": "rename the variable"}`),
 	}
 	out, note := codex.Handle(ev, cat)
@@ -200,8 +194,28 @@ func TestHandle_MalformedInputFailsOpen(t *testing.T) {
 	if note != "" {
 		t.Errorf("expected fail-open (no note), got %q", note)
 	}
-	if !out.Continue || out.HookSpecificOutput.PermissionDecision != "allow" {
-		t.Error("malformed input must fail open with continue:true + allow")
+	if out.HookSpecificOutput.PermissionDecision != "allow" {
+		t.Error("malformed input must fail open with permissionDecision: allow")
+	}
+}
+
+func TestHandle_UsesSupportedCodexPreToolUseEnvelope(t *testing.T) {
+	ev := codex.Event{
+		ToolName:  "spawn_agent",
+		Model:     catID(core.TierFrontier),
+		ToolInput: json.RawMessage(`{"message": "rename the variable"}`),
+	}
+	out, _ := codex.Handle(ev, cat)
+	raw, err := json.Marshal(out)
+	if err != nil {
+		t.Fatalf("marshal output: %v", err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		t.Fatalf("decode output: %v", err)
+	}
+	if _, found := decoded["continue"]; found {
+		t.Error("PreToolUse output must not contain unsupported continue")
 	}
 }
 

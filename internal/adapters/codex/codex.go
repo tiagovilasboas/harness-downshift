@@ -8,7 +8,7 @@
 // Codex spawns subagents through a reserved spawn_agent tool. A PreToolUse
 // hook can inject the model and reasoning_effort into the tool input via
 // hookSpecificOutput.updatedInput before the local spawn handler creates
-// the child. The envelope carries "continue": true.
+// the child.
 //
 // reasoning_effort is translated from core.Effort via the catalog's
 // effort_map for the target model — no hardcoded switch in this adapter.
@@ -34,7 +34,6 @@ type Event struct {
 
 // Output is the JSON we print on stdout to steer Codex's PreToolUse.
 type Output struct {
-	Continue           bool                `json:"continue"`
 	HookSpecificOutput *HookSpecificOutput `json:"hookSpecificOutput,omitempty"`
 }
 
@@ -98,7 +97,6 @@ func Handle(ev Event, r ...core.Resolver) (Output, string) {
 	}
 
 	out := Output{
-		Continue: true,
 		HookSpecificOutput: &HookSpecificOutput{
 			HookEventName:      "PreToolUse",
 			PermissionDecision: "allow",
@@ -118,7 +116,6 @@ func isSpawnTool(name string) bool {
 
 func allow() Output {
 	return Output{
-		Continue: true,
 		HookSpecificOutput: &HookSpecificOutput{
 			HookEventName:      "PreToolUse",
 			PermissionDecision: "allow",

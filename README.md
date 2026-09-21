@@ -218,7 +218,7 @@ Enable the feature flags in `config.toml`:
 
 ```toml
 [features]
-codex_hooks = true
+hooks = true
 
 [features.multi_agent_v2]
 enabled = true
@@ -261,6 +261,13 @@ On Codex, downshift routes **two axes at once**: the model tier and the
 reasoning effort (`low` for trivial work, up to `high` for the frontier tier).
 A trivial subagent drops from `gpt-6-astra` at high effort to `gpt-5.6-luna`
 at low effort — cheap on both counts.
+
+Downshift rewrites a spawn only when the task needs a **different tier** than
+the session model. For example, `list the Go files and do a code review` is a
+medium task; a `gpt-5.6-terra` session is already the medium tier, so it stays
+on that model. To make a downgrade visibly testable, use a purely mechanical
+prompt such as `Use a subagent to only list the .go files. Do not change
+anything.`
 
 > Codex's `multi_agent_v2` spawn schema is still evolving. downshift preserves
 > the reserved fields and fails open, but pin the exact Codex build you deploy
@@ -408,7 +415,7 @@ Cursor's `preToolUse` hook fires and harness-downshift runs, but the `model` rew
 |---|---|---|
 | Any (with `multi_agent_v2` enabled) | ✅ Yes | ✅ Yes — PreToolUse + updatedInput honored |
 
-Requires `[features] multi_agent_v2` and `codex_hooks = true` in `config.toml`.
+Requires `[features] multi_agent_v2` and `hooks = true` in `config.toml`.
 
 ### Summary
 

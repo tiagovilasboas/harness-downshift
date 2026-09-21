@@ -18,6 +18,7 @@ func TestClassify(t *testing.T) {
 		{"git commit", "git commit all the changes and push", Trivial},
 		{"add comment", "add a comment explaining this loop", Trivial},
 		{"bump version", "bump the version to 2.1.0", Trivial},
+		{"portuguese list files", "liste apenas os arquivos .go", Trivial},
 
 		// Simple — one isolated change
 		{"add field", "add a field email to the User struct", Simple},
@@ -29,6 +30,7 @@ func TestClassify(t *testing.T) {
 		{"refactor", "refactor the auth module to use the new client", Medium},
 		{"implement feature", "implement the feature to export sales as CSV", Medium},
 		{"debug context", "debug why the webhook handler drops events", Medium},
+		{"code review", "list the Go files and do a code review without changing anything", Medium},
 
 		// Complex — architecture, cross-system
 		{"architecture", "rearchitect the payment flow across services", Complex},

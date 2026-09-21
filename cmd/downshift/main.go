@@ -183,7 +183,7 @@ func printCursorAllow() {
 }
 
 func printCodexAllow() {
-	fmt.Println(`{"continue":true,"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}`)
+	fmt.Println(`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}`)
 }
 
 func usage() {

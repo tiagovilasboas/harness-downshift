@@ -85,6 +85,8 @@ func compileSignals() []signal {
 		{`\bmodule\b`, 1, Medium},
 		{`\bacross\s+\w+\s+files\b`, 2, Medium},
 		{`\bdebug\b`, 2, Medium},
+		{`\bcode\s+review\b`, 3, Medium},
+		{`\brevis(?:ar|e|ão|oes|ões)\b`, 2, Medium},
 
 		// SIMPLE — one isolated change.
 		{`\badd\s+(a\s+)?(field|param|flag|method|function)\b`, 2, Simple},
@@ -96,6 +98,7 @@ func compileSignals() []signal {
 
 		// TRIVIAL — mechanical.
 		{`\brename\b`, 3, Trivial},
+		{`\brenome\w*\b`, 3, Trivial},
 		{`\bformat\b`, 3, Trivial},
 		{`\bindent\b`, 3, Trivial},
 		{`\blint\b`, 2, Trivial},
@@ -109,6 +112,7 @@ func compileSignals() []signal {
 		{`\bdelete\s+(the\s+)?file\b`, 3, Trivial},
 		{`\bbump\s+.{0,15}version\b`, 3, Trivial},
 		{`\bremove\s+(unused|dead)\b`, 2, Trivial},
+		{`\blist(?:ar|e)?\b.{0,40}\barquivos?\b`, 3, Trivial},
 	}
 
 	out := make([]signal, 0, len(raw))
