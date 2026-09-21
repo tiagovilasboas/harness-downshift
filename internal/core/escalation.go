@@ -4,6 +4,8 @@
 
 package core
 
+import "strings"
+
 // EscalationIntent is a named task intent that sits above raw complexity.
 // It captures the *purpose* of the work, not just its difficulty, and drives
 // the recommended tier and effort without adapter-specific if-chains.
@@ -97,9 +99,9 @@ func isReviewTask(prompt string, cls Classification) bool {
 	if cls.Complexity != Complex {
 		return false
 	}
-	lower := toLower(prompt)
+	lower := strings.ToLower(prompt)
 	for phrase := range reviewSignals {
-		if contains(lower, phrase) {
+		if strings.Contains(lower, phrase) {
 			return true
 		}
 	}
@@ -134,28 +136,3 @@ func IntentFor(prompt string, cls Classification, d Decision, r Resolver) Escala
 	}
 }
 
-// toLower is a minimal ASCII-only lowercase helper to avoid importing strings.
-func toLower(s string) string {
-	b := make([]byte, len(s))
-	for i := range s {
-		c := s[i]
-		if c >= 'A' && c <= 'Z' {
-			c += 'a' - 'A'
-		}
-		b[i] = c
-	}
-	return string(b)
-}
-
-// contains reports whether substr is in s (both already lowercased).
-func contains(s, substr string) bool {
-	if len(substr) > len(s) {
-		return false
-	}
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}
