@@ -333,15 +333,17 @@ provides the full schema. The real catalog lives at
 
 | Wave | Status |
 |---|---|
-| 1.1 Extract `stringField` | ⬜ todo |
-| 1.2 Collapse hook runners | ⬜ todo |
-| 1.3 Remove `reasoningFor` (after Wave 4) | ⏳ blocked on 4.1 |
-| 2.1 Move `Complexity.Tier()` | ⬜ todo |
-| 2.2 Decompose `Route()` | ⬜ todo |
-| 3.1 Decouple policy tests | ⬜ todo |
-| 4.1 Promote `Effort` type | ⬜ todo |
-| 4.2 Create `catalog` package | ⬜ todo |
-| 4.3 Wire adapters to Resolver + Effort | ⬜ todo |
-| 5.1 `models list` | ⬜ todo |
-| 5.2 `models check` | ⬜ todo |
-| 5.3 `models pull` | ⬜ todo |
+| 1.1 Extract `stringField` | ✅ done — commit 7f35d2c |
+| 1.2 Collapse hook runners | ✅ done — commit 4cd1bbc |
+| 1.3 Remove `reasoningFor` (after Wave 4) | ✅ done — codex now uses `catalog.EffortValue()` |
+| 2.1 Move `Complexity.Tier()` | ✅ done — commit c11f81e |
+| 2.2 Decompose `Route()` | ✅ done — commit fdf1700 |
+| 3.1 Decouple policy tests | ✅ done — commit bd1f372 |
+| 4.1 `Resolver` interface in core | ✅ done — commit 4b35da6 |
+| 4.2 Create `catalog` package | ✅ done — commit 4b35da6 |
+| 4.3 `catalog.json` data | ✅ done — commit 4b35da6 |
+| 4.4 Wire adapters to Resolver | ✅ done — commits aa2c40e + 9f7d961 |
+| 4.5 `Effort` via catalog `effort_map` | ✅ done — commit 9f7d961 |
+| 5.1 `models list` | ✅ done — commit d841cdf |
+| 5.2 `models check` | ✅ done — commit 46f6878 |
+| 5.3 `models pull` | ✅ done — commit 3d6e388 |
