@@ -231,3 +231,14 @@ func (c *Catalog) EntryFor(harness, modelID string) (Entry, bool) {
 	}
 	return Entry{}, false
 }
+
+// EffortFor implements core.Resolver. It translates a core.Effort level to the
+// harness-native string for the given model ID using the entry's effort_map.
+// Falls back to effort.String() ("low"/"medium"/"high") when no entry or map
+// is found — safe to call for any harness/model combination.
+func (c *Catalog) EffortFor(harness, modelID string, effort core.Effort) string {
+	if entry, ok := c.EntryFor(harness, modelID); ok {
+		return EffortValue(entry, effort)
+	}
+	return effort.String()
+}

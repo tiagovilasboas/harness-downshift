@@ -26,4 +26,10 @@ type Resolver interface {
 	// SavingsRatio returns how much cheaper `to` is versus `from` as a
 	// fraction in [0, 1). Returns 0 when `to` is not cheaper than `from`.
 	SavingsRatio(from, to Model) float64
+
+	// EffortFor translates a core.Effort level to the harness-native string
+	// for the given model ID (e.g. Codex "low"/"medium"/"high", Claude
+	// thinking budget "0"/"8000"/"16000"). Falls back to effort.String()
+	// when no mapping is found — adapters can always call this safely.
+	EffortFor(harness, modelID string, effort Effort) string
 }

@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/tiagovilasboas/harness-downshift/internal/catalog"
 	"github.com/tiagovilasboas/harness-downshift/internal/core"
 	"github.com/tiagovilasboas/harness-downshift/internal/hookutil"
 )
@@ -83,15 +82,12 @@ func Handle(ev Event, r ...core.Resolver) (Output, string) {
 		return allow(), ""
 	}
 
-	// Translate effort via the catalog's effort_map for this model.
-	// Falls back to effort.String() ("low"/"medium"/"high") when no map entry.
+	// Translate effort via the Resolver — no type assertion needed.
+	// EffortFor reads the catalog's effort_map for this model and harness.
+	// Falls back to effort.String() ("low"/"medium"/"high") when absent.
 	effortValue := decision.Effort.String()
 	if res != nil {
-		if cat, ok := res.(*catalog.Catalog); ok {
-			if entry, found := cat.EntryFor(harnessID, decision.Model.ID); found {
-				effortValue = catalog.EffortValue(entry, decision.Effort)
-			}
-		}
+		effortValue = res.EffortFor(harnessID, decision.Model.ID, decision.Effort)
 	}
 
 	ti["model"] = decision.Model.ID
