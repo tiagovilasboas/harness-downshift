@@ -1,0 +1,52 @@
+{
+  "_comment": "Copy this file to ~/.harness-downshift/catalog.json and fill in the model IDs for your harnesses.",
+  "_comment2": "Run 'downshift models check' to discover new models from provider APIs.",
+  "version": "1",
+  "updated": "2026-09-20",
+  "entries": [
+    {
+      "id": "YOUR_SMALL_MODEL_ID",
+      "aliases": [],
+      "provider": "anthropic",
+      "harness": "claude-code",
+      "tier": "small",
+      "effort_scale": "thinking_budget",
+      "effort_map": { "low": "0", "medium": "5000", "high": "10000" },
+      "input_cost_per_1m": 0.00,
+      "output_cost_per_1m": 0.00
+    },
+    {
+      "id": "YOUR_MID_MODEL_ID",
+      "aliases": [],
+      "provider": "anthropic",
+      "harness": "claude-code",
+      "tier": "mid",
+      "effort_scale": "thinking_budget",
+      "effort_map": { "low": "0", "medium": "8000", "high": "16000" },
+      "input_cost_per_1m": 0.00,
+      "output_cost_per_1m": 0.00
+    },
+    {
+      "id": "YOUR_FRONTIER_MODEL_ID",
+      "aliases": [],
+      "provider": "anthropic",
+      "harness": "claude-code",
+      "tier": "frontier",
+      "effort_scale": "thinking_budget",
+      "effort_map": { "low": "0", "medium": "10000", "high": "20000" },
+      "input_cost_per_1m": 0.00,
+      "output_cost_per_1m": 0.00
+    },
+    {
+      "id": "YOUR_CODEX_SMALL_MODEL_ID",
+      "aliases": [],
+      "provider": "openai",
+      "harness": "codex",
+      "tier": "small",
+      "effort_scale": "reasoning_effort",
+      "effort_map": { "low": "low", "medium": "medium", "high": "high" },
+      "input_cost_per_1m": 0.00,
+      "output_cost_per_1m": 0.00
+    }
+  ]
+}
