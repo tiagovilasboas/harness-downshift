@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/tiagovilasboas/harness-downshift/internal/core"
+	"github.com/tiagovilasboas/harness-downshift/internal/hookutil"
 )
 
 const harnessID = "cursor"
@@ -57,12 +58,12 @@ func Handle(ev Event) (Output, string) {
 
 	// The subagent's own task text drives its complexity.
 	// Cursor's Task input commonly carries "task" and/or "prompt".
-	subPrompt := stringField(ti, "task")
+	subPrompt := hookutil.StringField(ti, "task")
 	if subPrompt == "" {
-		subPrompt = stringField(ti, "prompt")
+		subPrompt = hookutil.StringField(ti, "prompt")
 	}
 	if subPrompt == "" {
-		subPrompt = stringField(ti, "description")
+		subPrompt = hookutil.StringField(ti, "description")
 	}
 	if subPrompt == "" {
 		return allow(), ""
@@ -70,7 +71,7 @@ func Handle(ev Event) (Output, string) {
 
 	// Current model: the one on the Task input, else the structured model_id,
 	// else the legacy model slug.
-	currentModel := stringField(ti, "model")
+	currentModel := hookutil.StringField(ti, "model")
 	if currentModel == "" {
 		currentModel = ev.ModelID
 	}
@@ -107,14 +108,4 @@ func isTaskTool(name string) bool {
 // allow returns a no-op preToolUse output that lets the tool run unchanged.
 func allow() Output {
 	return Output{Permission: "allow"}
-}
-
-// stringField reads a string field from a decoded JSON object, empty if absent.
-func stringField(m map[string]any, key string) string {
-	if v, ok := m[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return ""
 }

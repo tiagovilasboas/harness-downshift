@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/tiagovilasboas/harness-downshift/internal/core"
+	"github.com/tiagovilasboas/harness-downshift/internal/hookutil"
 )
 
 const harnessID = "codex"
@@ -73,8 +74,8 @@ func Handle(ev Event) (Output, string) {
 	// The subagent's own task text drives its complexity. Codex v2 carries the
 	// work in "message"; "task_name" is a short role/slug hint we append so a
 	// name like "review_agent_payment_flow" still contributes signal.
-	subPrompt := stringField(ti, "message")
-	if tn := stringField(ti, "task_name"); tn != "" {
+	subPrompt := hookutil.StringField(ti, "message")
+	if tn := hookutil.StringField(ti, "task_name"); tn != "" {
 		subPrompt = strings.TrimSpace(subPrompt + " " + tn)
 	}
 	if subPrompt == "" {
@@ -82,7 +83,7 @@ func Handle(ev Event) (Output, string) {
 	}
 
 	// Current model: the one already on the tool input, else the session model.
-	currentModel := stringField(ti, "model")
+	currentModel := hookutil.StringField(ti, "model")
 	if currentModel == "" {
 		currentModel = ev.Model
 	}
@@ -151,14 +152,4 @@ func allow() Output {
 			PermissionDecision: "allow",
 		},
 	}
-}
-
-// stringField reads a string field from a decoded JSON object, empty if absent.
-func stringField(m map[string]any, key string) string {
-	if v, ok := m[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return ""
 }

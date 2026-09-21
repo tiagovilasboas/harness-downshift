@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/tiagovilasboas/harness-downshift/internal/core"
+	"github.com/tiagovilasboas/harness-downshift/internal/hookutil"
 )
 
 const harnessID = "claude-code"
@@ -54,9 +55,9 @@ func Handle(ev Event) (Output, string) {
 	}
 
 	// The subagent's own prompt drives its complexity, not the parent session.
-	subPrompt := stringField(ti, "prompt")
+	subPrompt := hookutil.StringField(ti, "prompt")
 	if subPrompt == "" {
-		subPrompt = stringField(ti, "description")
+		subPrompt = hookutil.StringField(ti, "description")
 	}
 	if subPrompt == "" {
 		return allow(), ""
@@ -64,7 +65,7 @@ func Handle(ev Event) (Output, string) {
 
 	// The current model for this subagent: the one already on the Task input,
 	// else the session model from the event.
-	currentModel := stringField(ti, "model")
+	currentModel := hookutil.StringField(ti, "model")
 	if currentModel == "" {
 		currentModel = ev.Model
 	}
