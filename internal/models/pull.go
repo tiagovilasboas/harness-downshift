@@ -129,7 +129,32 @@ func writeOverride(entries []catalog.Entry) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(dir, "catalog.json"), data, 0o600)
+
+	// Write to a private temporary file first, then atomically replace the
+	// destination only after the complete JSON payload is durable. A failed
+	// pull must never leave a partially-written catalog for the next hook run.
+	tmp, err := os.CreateTemp(dir, ".catalog.json-*")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+	defer os.Remove(tmpPath) // no-op after a successful rename
+	if err := tmp.Chmod(0o600); err != nil {
+		tmp.Close()
+		return err
+	}
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, filepath.Join(dir, "catalog.json"))
 }
 
 // entryKey builds a unique deduplication key.

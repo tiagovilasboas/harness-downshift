@@ -19,6 +19,7 @@ package catalog
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -58,6 +59,10 @@ type catalogFile struct {
 type Catalog struct {
 	// index: harness → tier → Model (primary lookup for routing)
 	index map[string]map[core.Tier]core.Model
+	// harnesses records every harness declared by the catalog, including one
+	// whose current entries do not provide every routable tier. A declared
+	// harness must never borrow a model ID from another harness.
+	harnesses map[string]struct{}
 	// byID: harness → modelID/alias → Model (exact and alias lookup)
 	byID map[string]map[string]core.Model
 	// byFamily: harness → family prefix → Model (version-agnostic fallback)
@@ -79,6 +84,12 @@ type familyEntry struct {
 // If the user file exists but cannot be parsed, a warning is printed to
 // stderr and Load falls back to the embedded file — fail-open, always.
 func Load() *Catalog {
+	return load(os.Stderr)
+}
+
+// load resolves the embedded catalog and optional user override. warning is
+// injected for tests; production callers use stderr through Load.
+func load(warning io.Writer) *Catalog {
 	base, err := decode(embeddedJSON)
 	if err != nil {
 		panic("harness-downshift: embedded catalog.json is invalid: " + err.Error())
@@ -88,17 +99,17 @@ func Load() *Catalog {
 	// entries that it does not name and replace only matching harness/model IDs.
 	if path, ok := userCatalogPath(); ok {
 		data, err := os.ReadFile(path)
-		if err == nil {
-			if override, err := decode(data); err == nil {
-				merged := mergeEntries(base.Entries, override.Entries)
-				if err := validateEntries(merged); err != nil {
-					fmt.Fprintf(os.Stderr, "downshift: warning: could not merge %s (%v); using embedded catalog\n", path, err)
-				} else {
-					base.Entries = merged
-				}
+		if err != nil {
+			fmt.Fprintf(warning, "downshift: warning: could not read %s (%v); using embedded catalog\n", path, err)
+		} else if override, err := decode(data); err == nil {
+			merged := mergeEntries(base.Entries, override.Entries)
+			if err := validateEntries(merged); err != nil {
+				fmt.Fprintf(warning, "downshift: warning: could not merge %s (%v); using embedded catalog\n", path, err)
 			} else {
-				fmt.Fprintf(os.Stderr, "downshift: warning: could not parse %s (%v); using embedded catalog\n", path, err)
+				base.Entries = merged
 			}
+		} else {
+			fmt.Fprintf(warning, "downshift: warning: could not parse %s (%v); using embedded catalog\n", path, err)
 		}
 	}
 	return build(base)
@@ -140,13 +151,17 @@ func decode(data []byte) (catalogFile, error) {
 
 func build(f catalogFile) *Catalog {
 	c := &Catalog{
-		index:    make(map[string]map[core.Tier]core.Model),
-		byID:     make(map[string]map[string]core.Model),
-		byFamily: make(map[string][]familyEntry),
-		entries:  f.Entries,
+		index:     make(map[string]map[core.Tier]core.Model),
+		harnesses: make(map[string]struct{}),
+		byID:      make(map[string]map[string]core.Model),
+		byFamily:  make(map[string][]familyEntry),
+		entries:   f.Entries,
 	}
 
 	for _, e := range f.Entries {
+		if e.Harness != "" {
+			c.harnesses[e.Harness] = struct{}{}
+		}
 		tier, ok := parseTier(e.Tier)
 		if !ok || e.ID == "" || e.Harness == "" {
 			continue
@@ -262,12 +277,19 @@ func parseTier(s string) (core.Tier, bool) {
 // --- core.Resolver implementation ---
 
 // ModelFor returns the model for the given harness and tier.
-// Falls back to the claude-code catalog for unknown harnesses.
+//
+// A declared harness that lacks a model for the requested tier returns a zero
+// model for that same harness. This prevents an incomplete per-harness catalog
+// from sending a model ID that belongs to another tool. Only an entirely
+// unknown harness falls back to the claude-code catalog.
 func (c *Catalog) ModelFor(harness string, tier core.Tier) core.Model {
 	if h, ok := c.index[harness]; ok {
 		if m, ok := h[tier]; ok {
 			return m
 		}
+	}
+	if _, known := c.harnesses[harness]; known {
+		return core.Model{Tier: tier, Harness: harness}
 	}
 	// Fallback: claude-code is always present in the embedded catalog.
 	if h, ok := c.index["claude-code"]; ok {

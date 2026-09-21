@@ -5,7 +5,11 @@
 package catalog
 
 import (
+	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/tiagovilasboas/harness-downshift/internal/core"
@@ -41,6 +45,49 @@ func TestModelFor_UnknownHarness_FallsBack(t *testing.T) {
 	m := c.ModelFor("unknown-harness", core.TierSmall)
 	if m.ID == "" {
 		t.Error("ModelFor(unknown) must return a fallback, not empty ID")
+	}
+}
+
+func TestModelFor_KnownIncompleteHarnessDoesNotBorrowClaudeModel(t *testing.T) {
+	c, err := parse([]byte(`{
+		"entries": [
+			{"id":"claude-haiku","harness":"claude-code","tier":"small"},
+			{"id":"codex-terra","harness":"codex","tier":"mid"}
+		]
+	}`))
+	if err != nil {
+		t.Fatalf("parse catalog: %v", err)
+	}
+
+	m := c.ModelFor("codex", core.TierSmall)
+	if m.ID != "" {
+		t.Fatalf("known incomplete harness returned model %q; must not borrow another harness model", m.ID)
+	}
+	if m.Harness != "codex" {
+		t.Errorf("zero model harness = %q, want codex", m.Harness)
+	}
+	if m.Tier != core.TierSmall {
+		t.Errorf("zero model tier = %s, want small", m.Tier)
+	}
+}
+
+func TestModelFor_DeclaredHarnessWithoutRoutableModelsDoesNotFallback(t *testing.T) {
+	c, err := parse([]byte(`{
+		"entries": [
+			{"id":"claude-haiku","harness":"claude-code","tier":"small"},
+			{"id":"pending-model","harness":"codex","tier":"unknown"}
+		]
+	}`))
+	if err != nil {
+		t.Fatalf("parse catalog: %v", err)
+	}
+
+	m := c.ModelFor("codex", core.TierSmall)
+	if m.ID != "" {
+		t.Fatalf("declared harness without routable tiers returned model %q; must not fallback", m.ID)
+	}
+	if m.Harness != "codex" {
+		t.Errorf("zero model harness = %q, want codex", m.Harness)
 	}
 }
 
@@ -320,5 +367,23 @@ func TestMergeEntries_PreservesDefaultsAndOverridesTarget(t *testing.T) {
 	}
 	if string(encoded) == "" || len(merged) != 3 || merged[0].ID != "luna" || merged[1].Tier != "frontier" {
 		t.Fatalf("merge did not preserve and override entries: %#v", merged)
+	}
+}
+
+func TestLoad_WarnsAndFallsBackWhenOverrideCannotBeRead(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	dir := filepath.Join(home, ".harness-downshift", "catalog.json")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatalf("MkdirAll override directory: %v", err)
+	}
+
+	var warnings bytes.Buffer
+	c := load(&warnings)
+	if c == nil || len(c.Entries()) == 0 {
+		t.Fatal("load() did not fall back to the embedded catalog")
+	}
+	if !strings.Contains(warnings.String(), "could not read") {
+		t.Errorf("warnings = %q, want override read warning", warnings.String())
 	}
 }
