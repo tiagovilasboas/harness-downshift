@@ -259,33 +259,73 @@ Writes/updates `~/.harness-downshift/catalog.json`:
 
 ---
 
-## Intellectual property and licence
+## Intellectual property, licence, and registration
 
-The Licensed Work is owned by **Tiago de Carvalho Vilas Boas** and protected
-under the **Business Source License 1.1** (see `LICENSE`).
+### Licence: Business Source License 1.1
 
-| Use | Permitted? |
+`SPDX-License-Identifier: BUSL-1.1`
+
+Non-commercial use (study, research, personal, open-source without revenue,
+internal tooling not tied to revenue) is **free**. Commercial use requires a
+written licence from Tiago de Carvalho Vilas Boas.
+
+Change Date: **2030-09-20** → Apache 2.0.
+
+### Damage schedule (unauthorised commercial use)
+
+| Organisation tier | Per instance / per month |
 |---|---|
-| Personal / educational / research | ✅ Free |
-| Internal use within your organisation | ✅ Free |
-| Open-source projects (non-commercial) | ✅ Free |
-| SaaS product, paid tool, managed service | ❌ Requires commercial licence |
-| Consulting deliverable sold to a client | ❌ Requires commercial licence |
+| Individual / Micro | USD 10k / BRL 55k |
+| Startup (5–50 / USD 250k–5M) | USD 50k / BRL 275k |
+| Growth (51–500 / USD 5M–100M) | USD 150k / BRL 825k |
+| Enterprise (> 500 / > USD 100M) | USD 500k / BRL 2.75M |
 
-**Change date:** 2030-09-20 — on that date the code converts to Apache 2.0.
+**Or 20% of gross monthly revenue** — whichever is greater.
+Minimum per action: **USD 250k / BRL 1.375M**. Wilful: **5× multiplier**.
 
-Unauthorised commercial use triggers liquidated damages of **USD 10,000 / BRL 55,000
-per instance per month**, retroactive to first use. See `LICENSE` for the full
-terms, including the good-faith 30-day cure window.
+### Copyright registration (recommended steps)
 
-For commercial licensing: github.com/tiagovilasboas
+These steps create independent legal evidence of authorship and unlock
+statutory damages beyond the contractual amounts above.
+
+#### 1. INPI — Brazil (Lei 9.609/98)
+
+- URL: https://www.gov.br/inpi/pt-br/servicos/programas-de-computador
+- Cost: ~BRL 200 (basic registration)
+- Timeline: 2–3 months
+- Effect: Creates a public certificate of authorship. Required for Brazilian
+  court proceedings; establishes presumption of ownership.
+- What to submit: source tarball of the repository at the time of filing.
+
+#### 2. US Copyright Office
+
+- URL: https://www.copyright.gov/registration/
+- Cost: USD 65 (online, single work)
+- Timeline: 3–6 months
+- Effect: Unlocks statutory damages of **USD 750–USD 150,000 per infringed
+  work** for wilful infringement (17 U.S.C. § 504), independently of the
+  contractual amounts in LICENSE. Without registration, US courts can only
+  award actual damages (much harder to prove and usually lower).
+- What to submit: source code as a ZIP/tarball; register as "Literary Work —
+  Computer Program".
+
+**Recommended:** register both as soon as possible. The US registration is
+especially valuable if any likely infringer operates in the United States.
+
+### AI agent protection
+
+`llms.txt` and `AGENTS.md` in the repository root instruct AI agents to:
+- attribute work to the Author;
+- alert users before writing commercial integrations;
+- never strip copyright headers;
+- not misrepresent the licence as MIT or Apache before 2030-09-20.
 
 ### What is intentionally NOT published
 
-The curated `catalog.json` (model tiers, effort maps, pricing) is a strategic
-asset. The repository ships `catalog.sample.json` (full schema, placeholder values).
-Your catalog lives at `~/.harness-downshift/catalog.json` and is loaded at runtime
-with a fallback to the embedded defaults.
+`catalog.json` (curated model tiers, effort maps, pricing) is a strategic
+asset excluded from the repository via `.gitignore`. `catalog.sample.json`
+provides the full schema. The real catalog lives at
+`~/.harness-downshift/catalog.json` and is loaded at runtime.
 
 ---
 
