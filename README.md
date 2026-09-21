@@ -395,4 +395,22 @@ PRs with prompts it gets wrong are the most useful contribution.
 
 ## License
 
-[MIT](LICENSE) © 2026 [Tiago Vilas Boas](https://github.com/tiagovilasboas)
+`harness-downshift` is released under the **Business Source License 1.1**.
+
+| Use | Permitted? |
+|---|---|
+| Personal, educational, research | ✅ Free |
+| Internal use within your organisation | ✅ Free |
+| Open-source non-commercial projects | ✅ Free |
+| SaaS product, paid tool, managed service | ❌ Requires commercial licence |
+| Consulting deliverable sold to a client | ❌ Requires commercial licence |
+
+On **2030-09-20** the code converts automatically to Apache 2.0.
+
+Unauthorised commercial use triggers liquidated damages of **USD 10,000 / BRL 55,000
+per production instance per month**, retroactive to first use — see [`LICENSE`](LICENSE)
+for the full terms and the 30-day good-faith cure window.
+
+For commercial licensing enquiries: [github.com/tiagovilasboas](https://github.com/tiagovilasboas)
+
+© 2026 [Tiago de Carvalho Vilas Boas](https://github.com/tiagovilasboas)

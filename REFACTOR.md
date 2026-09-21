@@ -259,6 +259,36 @@ Writes/updates `~/.harness-downshift/catalog.json`:
 
 ---
 
+## Intellectual property and licence
+
+The Licensed Work is owned by **Tiago de Carvalho Vilas Boas** and protected
+under the **Business Source License 1.1** (see `LICENSE`).
+
+| Use | Permitted? |
+|---|---|
+| Personal / educational / research | ✅ Free |
+| Internal use within your organisation | ✅ Free |
+| Open-source projects (non-commercial) | ✅ Free |
+| SaaS product, paid tool, managed service | ❌ Requires commercial licence |
+| Consulting deliverable sold to a client | ❌ Requires commercial licence |
+
+**Change date:** 2030-09-20 — on that date the code converts to Apache 2.0.
+
+Unauthorised commercial use triggers liquidated damages of **USD 10,000 / BRL 55,000
+per instance per month**, retroactive to first use. See `LICENSE` for the full
+terms, including the good-faith 30-day cure window.
+
+For commercial licensing: github.com/tiagovilasboas
+
+### What is intentionally NOT published
+
+The curated `catalog.json` (model tiers, effort maps, pricing) is a strategic
+asset. The repository ships `catalog.sample.json` (full schema, placeholder values).
+Your catalog lives at `~/.harness-downshift/catalog.json` and is loaded at runtime
+with a fallback to the embedded defaults.
+
+---
+
 ## Progress
 
 | Wave | Status |
