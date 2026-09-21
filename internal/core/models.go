@@ -90,3 +90,47 @@ func SavingsRatio(from, to Model) float64 {
 	}
 	return (fromCost - toCost) / fromCost
 }
+
+// Effort is the reasoning/compute intensity for a task. It is harness-agnostic:
+// each adapter translates this to the native scale its harness accepts
+// (e.g. Codex "low/medium/high", Grok "low/medium/high").
+type Effort int
+
+const (
+	// EffortLow — minimal reasoning; for mechanical, deterministic work.
+	EffortLow Effort = iota
+	// EffortMid — standard reasoning; for routine implementation tasks.
+	EffortMid
+	// EffortHigh — deep reasoning; for architecture, debugging, migrations.
+	EffortHigh
+)
+
+// String returns the effort level as the canonical lowercase string.
+// Adapters use this to translate to their harness-native scale.
+func (e Effort) String() string {
+	switch e {
+	case EffortLow:
+		return "low"
+	case EffortMid:
+		return "medium"
+	case EffortHigh:
+		return "high"
+	default:
+		return "medium"
+	}
+}
+
+// EffortFor returns the recommended effort level for a tier. Cheaper tiers get
+// lower effort so a trivial subagent is cheap on both model and reasoning axes.
+func EffortFor(t Tier) Effort {
+	switch t {
+	case TierSmall:
+		return EffortLow
+	case TierMid:
+		return EffortMid
+	case TierFrontier:
+		return EffortHigh
+	default:
+		return EffortMid
+	}
+}
