@@ -64,38 +64,51 @@ func (v Verdict) String() string {
 
 // Route is the main entry point: given a task prompt, a harness, and the
 // current model id (may be empty when unknown), produce a routing Decision.
+// It composes three focused steps: classify, resolve, compare.
 func Route(prompt, harness, currentModelID string) Decision {
-	cls := Classify(prompt)
-	tier := cls.Complexity.Tier()
-	recommended := ModelFor(harness, tier)
+	tier, cls := classifyTask(prompt)
+	recommended := resolveModel(harness, tier)
+	verdict, savings, current := compareToCurrentModel(harness, currentModelID, recommended)
 
-	d := Decision{
-		Complexity: cls.Complexity,
-		Tier:       tier,
-		Harness:    harness,
-		Model:      recommended,
-		Confident:  cls.Confident,
+	return Decision{
+		Complexity:   cls,
+		Tier:         tier,
+		Harness:      harness,
+		Model:        recommended,
+		CurrentModel: current,
+		Verdict:      verdict,
+		Savings:      savings,
+		Confident:    Classify(prompt).Confident,
 	}
+}
 
+// classifyTask scores the prompt and returns the target tier and complexity.
+func classifyTask(prompt string) (Tier, Complexity) {
+	cls := Classify(prompt)
+	return cls.Complexity.Tier(), cls.Complexity
+}
+
+// resolveModel returns the catalog model for the given harness and tier.
+func resolveModel(harness string, tier Tier) Model {
+	return ModelFor(harness, tier)
+}
+
+// compareToCurrentModel looks up the current model in the catalog and
+// determines whether to downshift, upshift, keep, or flag as unknown.
+func compareToCurrentModel(harness, currentModelID string, recommended Model) (Verdict, float64, Model) {
 	current, known := lookupCurrent(harness, currentModelID)
 	if !known {
-		d.Verdict = VerdictUnknown
-		return d
+		return VerdictUnknown, 0, Model{}
 	}
-	d.CurrentModel = current
 
 	switch {
-	case current.Tier == tier:
-		d.Verdict = VerdictOK
-	case current.Tier > tier:
-		// Current is stronger than needed — downshift to save money.
-		d.Verdict = VerdictDownshift
-		d.Savings = SavingsRatio(current, recommended)
+	case current.Tier == recommended.Tier:
+		return VerdictOK, 0, current
+	case current.Tier > recommended.Tier:
+		return VerdictDownshift, SavingsRatio(current, recommended), current
 	default:
-		// Current is weaker than needed — upshift for quality.
-		d.Verdict = VerdictUpshift
+		return VerdictUpshift, 0, current
 	}
-	return d
 }
 
 // lookupCurrent resolves a current model id to a catalog Model. Returns
