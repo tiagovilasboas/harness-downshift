@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Tiago de Carvalho Vilas Boas.
+// Licensed under the Business Source License 1.1.
+// Commercial use requires a licence — see LICENSE for terms.
+
 // Command downshift is the harness-downshift binary. It runs as a hook: a
 // harness pipes a JSON event on stdin, downshift classifies the subagent task
 // and prints the steering JSON on stdout that rewrites the subagent's model.

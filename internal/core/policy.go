@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Tiago de Carvalho Vilas Boas.
+// Licensed under the Business Source License 1.1.
+// Commercial use requires a licence — see LICENSE for terms.
+
 package core
 
 import "fmt"

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Tiago de Carvalho Vilas Boas.
+// Licensed under the Business Source License 1.1.
+// Commercial use requires a licence — see LICENSE for terms.
+
 // Package cursor adapts core routing decisions to Cursor's hook protocol.
 //
 // Cursor exposes a preToolUse hook whose output supports updated_input — the

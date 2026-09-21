@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Tiago de Carvalho Vilas Boas.
+// Licensed under the Business Source License 1.1.
+// Commercial use requires a licence — see LICENSE for terms.
+
 // Package claudecode adapts core routing decisions to Claude Code's hook
 // protocol. Claude Code spawns subagents via the Task tool; a PreToolUse hook
 // can rewrite the tool input before the subagent starts — including its model.

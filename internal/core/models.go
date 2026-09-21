@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Tiago de Carvalho Vilas Boas.
+// Licensed under the Business Source License 1.1.
+// Commercial use requires a licence — see LICENSE for terms.
+
 // Package core is the harness-agnostic brain of harness-downshift.
 // It classifies a task by complexity and maps it to the cheapest model tier
 // that can handle it. Adapters translate this decision into each harness's
