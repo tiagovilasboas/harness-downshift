@@ -136,6 +136,7 @@ The main session keeps the model you chose. Only the subagents get right-sized.
 $ downshift try "rename the userId variable across auth.ts"
 Task:       rename the userId variable across auth.ts
 Complexity: TRIVIAL
+Intent:     trivial
 Needs tier: small
 Recommend:  claude-haiku-4
 Verdict:    DOWNSHIFT
@@ -264,11 +265,14 @@ at low effort — cheap on both counts.
 
 Downshift always applies the selected reasoning effort. A code review is a
 frontier task, so a `gpt-5.6-terra` session routes its subagent to
-`gpt-5.6-sol` at high effort. Astra is deliberately excluded from automatic
-routing: reserve it for an explicit user choice on exceptional, token-heavy
-investigations. A purely mechanical prompt such as `Use a
-subagent to only list the .go files. Do not change anything.` is routed to
-`gpt-5.6-luna` at low effort.
+`gpt-5.6-sol` at high effort. `gpt-6-astra` is marked `routing: "explicit_only"`
+in the catalog: downshift **never selects it automatically**, but if the current
+subagent is already running on Astra the model is preserved unchanged — it was
+the user's deliberate choice. To mark any other model as explicit-only, add
+`"routing": "explicit_only"` to its entry in `~/.harness-downshift/catalog.json`.
+
+A purely mechanical prompt such as `Use a subagent to only list the .go files`
+is routed to `gpt-5.6-luna` at low effort.
 
 > Codex's `multi_agent_v2` spawn schema is still evolving. downshift preserves
 > the reserved fields and fails open, but pin the exact Codex build you deploy
