@@ -243,9 +243,23 @@ tool names:
 }
 ```
 
+### Trust the hook before testing
+
+Codex does not run newly configured local hooks until you review and trust
+their exact command. This is a Codex safety control, not a downshift error.
+After saving the configuration, start Codex and run:
+
+```text
+/hooks
+```
+
+Review and trust the `downshift codex` hook, then start a **new session**
+before asking Codex to spawn a subagent. Until the hook is trusted, Codex skips
+it and the subagent keeps the session model unchanged.
+
 On Codex, downshift routes **two axes at once**: the model tier and the
 reasoning effort (`low` for trivial work, up to `high` for the frontier tier).
-A trivial subagent drops from `gpt-5.3-codex` at high effort to `gpt-5.6-luna`
+A trivial subagent drops from `gpt-6-astra` at high effort to `gpt-5.6-luna`
 at low effort — cheap on both counts.
 
 > Codex's `multi_agent_v2` spawn schema is still evolving. downshift preserves
