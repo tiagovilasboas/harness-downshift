@@ -132,6 +132,26 @@ Add the hook to `~/.claude/settings.json`:
 
 That's it. Every subagent your session spawns now runs in the right gear.
 
+## Install (Cursor)
+
+Cursor's hook protocol mirrors Claude Code's — same `preToolUse` interception,
+`updated_input` to rewrite the subagent's model. Build the binary, then add the
+hook to `.cursor/hooks.json` (project level) or `~/.cursor/hooks.json` (global):
+
+```json
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      { "command": "downshift cursor", "matcher": "Task" }
+    ]
+  }
+}
+```
+
+The `matcher: "Task"` scopes the hook to subagent spawns only. Cursor watches
+the config and reloads it on save.
+
 ---
 
 ## Why a hook, and why only subagents
@@ -153,7 +173,7 @@ That's the one place model selection is genuinely controllable from the outside
 | Harness | Subagents | Control mechanism | Status |
 |---|---|---|---|
 | **Claude Code** | ✅ Task tool | `PreToolUse` hook → `updatedInput.model` | ✅ shipped |
-| **Cursor** | ✅ Task tool | subagent frontmatter `model:` / Task param | 🔜 next |
+| **Cursor** | ✅ Task tool | `preToolUse` hook → `updated_input.model` | ✅ shipped |
 | **Codex** | ✅ | spawn-time `--model` | 🔜 next |
 | Kiro (single-thread) | ❌ no subagents | — | not applicable |
 | Claude.ai / ChatGPT web | ❌ closed | — | not possible |
