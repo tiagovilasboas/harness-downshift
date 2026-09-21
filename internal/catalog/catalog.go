@@ -1,0 +1,233 @@
+// Copyright (c) 2026 Tiago de Carvalho Vilas Boas.
+// SPDX-License-Identifier: BUSL-1.1
+// Commercial use requires a licence — see LICENSE for terms.
+
+// Package catalog owns all model-ID data for harness-downshift.
+//
+// core never imports catalog. The dependency runs one way:
+//
+//	catalog → core (for Tier, Effort types)
+//	adapters → catalog (for a Resolver at startup)
+//
+// Model data lives in catalog.json (embedded at compile time). Users may
+// override it by placing a file at ~/.harness-downshift/catalog.json — the
+// override is merged at load time, with the user file taking precedence.
+// Any error reading the user file is logged to stderr and silently ignored;
+// the embedded catalog is always the safe fallback.
+package catalog
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	_ "embed"
+
+	"github.com/tiagovilasboas/harness-downshift/internal/core"
+)
+
+//go:embed catalog.json
+var embeddedJSON []byte
+
+// Entry is one row in the catalog JSON.
+type Entry struct {
+	ID           string            `json:"id"`
+	Aliases      []string          `json:"aliases"`
+	Provider     string            `json:"provider"`
+	Harness      string            `json:"harness"`
+	Tier         string            `json:"tier"`   // "small" | "mid" | "frontier" | "unknown"
+	EffortScale  string            `json:"effort_scale"`
+	EffortMap    map[string]string `json:"effort_map"` // "low"|"medium"|"high" → native string
+	InputCostM   float64           `json:"input_cost_per_1m"`
+	OutputCostM  float64           `json:"output_cost_per_1m"`
+}
+
+// catalogFile is the structure of the JSON file on disk.
+type catalogFile struct {
+	Version string  `json:"version"`
+	Updated string  `json:"updated"`
+	Entries []Entry `json:"entries"`
+}
+
+// Catalog is the resolved in-memory model store, implementing core.Resolver.
+type Catalog struct {
+	// index: harness → tier → Model (primary lookup)
+	index map[string]map[core.Tier]core.Model
+	// byID: harness → modelID → Model (secondary lookup for current-model resolution)
+	byID map[string]map[string]core.Model
+	// entries: all raw entries (for list/check/pull commands)
+	entries []Entry
+}
+
+// Load returns the effective Catalog. Load priority:
+//  1. ~/.harness-downshift/catalog.json (user override, if present and valid)
+//  2. Embedded catalog.json (compile-time default, always valid)
+//
+// If the user file exists but cannot be parsed, a warning is printed to
+// stderr and Load falls back to the embedded file — fail-open, always.
+func Load() *Catalog {
+	// Try user override first.
+	if path, ok := userCatalogPath(); ok {
+		data, err := os.ReadFile(path)
+		if err == nil {
+			if c, err := parse(data); err == nil {
+				return c
+			} else {
+				fmt.Fprintf(os.Stderr, "downshift: warning: could not parse %s (%v); using embedded catalog\n", path, err)
+			}
+		}
+	}
+	// Fallback: embedded — this must always succeed.
+	c, err := parse(embeddedJSON)
+	if err != nil {
+		// Should never happen — embedded JSON is validated at test time.
+		panic("harness-downshift: embedded catalog.json is invalid: " + err.Error())
+	}
+	return c
+}
+
+// userCatalogPath returns the path to the user override file and whether it
+// exists. Returns false if XDG / home resolution fails.
+func userCatalogPath() (string, bool) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", false
+	}
+	p := filepath.Join(home, ".harness-downshift", "catalog.json")
+	if _, err := os.Stat(p); err != nil {
+		return "", false
+	}
+	return p, true
+}
+
+// parse decodes a catalog JSON payload into a Catalog.
+func parse(data []byte) (*Catalog, error) {
+	var f catalogFile
+	if err := json.Unmarshal(data, &f); err != nil {
+		return nil, err
+	}
+
+	c := &Catalog{
+		index:   make(map[string]map[core.Tier]core.Model),
+		byID:    make(map[string]map[string]core.Model),
+		entries: f.Entries,
+	}
+
+	for _, e := range f.Entries {
+		tier, ok := parseTier(e.Tier)
+		if !ok {
+			continue // skip unknown-tier entries in the index
+		}
+		m := core.Model{
+			ID:      e.ID,
+			Tier:    tier,
+			InputM:  e.InputCostM,
+			OutputM: e.OutputCostM,
+			Harness: e.Harness,
+		}
+
+		if c.index[e.Harness] == nil {
+			c.index[e.Harness] = make(map[core.Tier]core.Model)
+		}
+		// First entry for this (harness, tier) pair wins.
+		if _, exists := c.index[e.Harness][tier]; !exists {
+			c.index[e.Harness][tier] = m
+		}
+
+		if c.byID[e.Harness] == nil {
+			c.byID[e.Harness] = make(map[string]core.Model)
+		}
+		c.byID[e.Harness][e.ID] = m
+		for _, alias := range e.Aliases {
+			c.byID[e.Harness][alias] = m
+		}
+	}
+	return c, nil
+}
+
+// parseTier converts the JSON string tier to a core.Tier constant.
+func parseTier(s string) (core.Tier, bool) {
+	switch strings.ToLower(s) {
+	case "small":
+		return core.TierSmall, true
+	case "mid":
+		return core.TierMid, true
+	case "frontier":
+		return core.TierFrontier, true
+	default:
+		return 0, false
+	}
+}
+
+// --- core.Resolver implementation ---
+
+// ModelFor returns the model for the given harness and tier.
+// Falls back to the claude-code catalog for unknown harnesses.
+func (c *Catalog) ModelFor(harness string, tier core.Tier) core.Model {
+	if h, ok := c.index[harness]; ok {
+		if m, ok := h[tier]; ok {
+			return m
+		}
+	}
+	// Fallback: claude-code is always present in the embedded catalog.
+	if h, ok := c.index["claude-code"]; ok {
+		if m, ok := h[tier]; ok {
+			return m
+		}
+	}
+	// Last resort: zero model (should never happen with embedded catalog).
+	return core.Model{Tier: tier, Harness: harness}
+}
+
+// LookupByID returns the model with the given ID in the given harness catalog.
+func (c *Catalog) LookupByID(harness, modelID string) (core.Model, bool) {
+	if modelID == "" {
+		return core.Model{}, false
+	}
+	if h, ok := c.byID[harness]; ok {
+		if m, ok := h[modelID]; ok {
+			return m, true
+		}
+	}
+	return core.Model{}, false
+}
+
+// SavingsRatio returns how much cheaper `to` is versus `from` as a fraction.
+func (c *Catalog) SavingsRatio(from, to core.Model) float64 {
+	fromCost := from.InputM + from.OutputM
+	toCost := to.InputM + to.OutputM
+	if fromCost <= 0 || toCost >= fromCost {
+		return 0
+	}
+	return (fromCost - toCost) / fromCost
+}
+
+// --- Accessors for commands (models list / check / pull) ---
+
+// Entries returns all raw catalog entries (including unknown-tier ones).
+func (c *Catalog) Entries() []Entry {
+	return c.entries
+}
+
+// EffortValue translates a core.Effort to the harness-native string for a
+// given model entry. Falls back to effort.String() if no map entry exists.
+func EffortValue(e Entry, effort core.Effort) string {
+	if e.EffortMap != nil {
+		if v, ok := e.EffortMap[effort.String()]; ok {
+			return v
+		}
+	}
+	return effort.String()
+}
+
+// EntryFor returns the raw Entry for a given harness+modelID, if present.
+func (c *Catalog) EntryFor(harness, modelID string) (Entry, bool) {
+	for _, e := range c.entries {
+		if e.Harness == harness && e.ID == modelID {
+			return e, true
+		}
+	}
+	return Entry{}, false
+}
