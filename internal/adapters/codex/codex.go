@@ -77,7 +77,11 @@ func Handle(ev Event, r ...core.Resolver) (Output, string) {
 	}
 	decision := core.Route(subPrompt, harnessID, currentModel, res)
 
-	if decision.Verdict != core.VerdictDownshift && decision.Verdict != core.VerdictUpshift {
+	// Codex routes both the model tier and reasoning effort. Even when the
+	// selected model already matches, rewrite the spawn so the child receives
+	// the effort associated with this task (for example, terra/medium rather
+	// than inheriting terra/low from its parent).
+	if decision.Verdict != core.VerdictDownshift && decision.Verdict != core.VerdictUpshift && decision.Verdict != core.VerdictOK {
 		return allow(), ""
 	}
 
@@ -89,7 +93,14 @@ func Handle(ev Event, r ...core.Resolver) (Output, string) {
 		effortValue = res.EffortFor(harnessID, decision.Model.ID, decision.Effort)
 	}
 
-	ti["model"] = decision.Model.ID
+	targetModel := decision.Model.ID
+	// A user who explicitly selected a frontier model (for example Astra for an
+	// exceptional investigation) must not be silently moved to the default
+	// frontier model. Keep the current model when it already has the right tier.
+	if decision.Verdict == core.VerdictOK && decision.CurrentModel.ID != "" {
+		targetModel = decision.CurrentModel.ID
+	}
+	ti["model"] = targetModel
 	ti["reasoning_effort"] = effortValue
 	updated, err := json.Marshal(ti)
 	if err != nil {

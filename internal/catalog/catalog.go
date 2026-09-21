@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	_ "embed"
@@ -35,12 +36,12 @@ var embeddedJSON []byte
 type Entry struct {
 	ID          string            `json:"id"`
 	Aliases     []string          `json:"aliases"`
-	Family      string            `json:"family"`      // stable prefix for version-agnostic matching
+	Family      string            `json:"family"` // stable prefix for version-agnostic matching
 	Provider    string            `json:"provider"`
 	Harness     string            `json:"harness"`
-	Tier        string            `json:"tier"`        // "small" | "mid" | "frontier" | "unknown"
+	Tier        string            `json:"tier"` // "small" | "mid" | "frontier" | "unknown"
 	EffortScale string            `json:"effort_scale"`
-	EffortMap   map[string]string `json:"effort_map"`  // "low"|"medium"|"high" → native string
+	EffortMap   map[string]string `json:"effort_map"` // "low"|"medium"|"high" → native string
 	InputCostM  float64           `json:"input_cost_per_1m"`
 	OutputCostM float64           `json:"output_cost_per_1m"`
 }
@@ -77,24 +78,24 @@ type familyEntry struct {
 // If the user file exists but cannot be parsed, a warning is printed to
 // stderr and Load falls back to the embedded file — fail-open, always.
 func Load() *Catalog {
-	// Try user override first.
+	base, err := decode(embeddedJSON)
+	if err != nil {
+		panic("harness-downshift: embedded catalog.json is invalid: " + err.Error())
+	}
+
+	// A user catalog is an override, not a replacement: preserve all embedded
+	// entries that it does not name and replace only matching harness/model IDs.
 	if path, ok := userCatalogPath(); ok {
 		data, err := os.ReadFile(path)
 		if err == nil {
-			if c, err := parse(data); err == nil {
-				return c
+			if override, err := decode(data); err == nil {
+				base.Entries = mergeEntries(base.Entries, override.Entries)
 			} else {
 				fmt.Fprintf(os.Stderr, "downshift: warning: could not parse %s (%v); using embedded catalog\n", path, err)
 			}
 		}
 	}
-	// Fallback: embedded — this must always succeed.
-	c, err := parse(embeddedJSON)
-	if err != nil {
-		// Should never happen — embedded JSON is validated at test time.
-		panic("harness-downshift: embedded catalog.json is invalid: " + err.Error())
-	}
-	return c
+	return build(base)
 }
 
 // userCatalogPath returns the path to the user override file and whether it
@@ -113,11 +114,25 @@ func userCatalogPath() (string, bool) {
 
 // parse decodes a catalog JSON payload into a Catalog.
 func parse(data []byte) (*Catalog, error) {
-	var f catalogFile
-	if err := json.Unmarshal(data, &f); err != nil {
+	f, err := decode(data)
+	if err != nil {
 		return nil, err
 	}
+	return build(f), nil
+}
 
+func decode(data []byte) (catalogFile, error) {
+	var f catalogFile
+	if err := json.Unmarshal(data, &f); err != nil {
+		return catalogFile{}, err
+	}
+	if err := validateEntries(f.Entries); err != nil {
+		return catalogFile{}, err
+	}
+	return f, nil
+}
+
+func build(f catalogFile) *Catalog {
 	c := &Catalog{
 		index:    make(map[string]map[core.Tier]core.Model),
 		byID:     make(map[string]map[string]core.Model),
@@ -161,8 +176,55 @@ func parse(data []byte) (*Catalog, error) {
 			c.byFamily[e.Harness] = append(c.byFamily[e.Harness], fe)
 		}
 	}
-	return c, nil
+	return c
 }
+
+func mergeEntries(base, override []Entry) []Entry {
+	byKey := make(map[string]Entry)
+	for _, e := range override {
+		if e.ID != "" && e.Harness != "" {
+			byKey[entryKey(e)] = e
+		}
+	}
+	merged := make([]Entry, 0, len(base)+len(override))
+	seen := make(map[string]bool)
+	for _, e := range base {
+		key := entryKey(e)
+		if replacement, ok := byKey[key]; ok {
+			merged = append(merged, replacement)
+			seen[key] = true
+			continue
+		}
+		merged = append(merged, e)
+	}
+	var appended []Entry
+	for key, e := range byKey {
+		if !seen[key] {
+			appended = append(appended, e)
+		}
+	}
+	sort.Slice(appended, func(i, j int) bool { return entryKey(appended[i]) < entryKey(appended[j]) })
+	return append(merged, appended...)
+}
+
+func validateEntries(entries []Entry) error {
+	used := make(map[string]string)
+	for _, e := range entries {
+		if e.ID == "" || e.Harness == "" {
+			continue // section/comment entries
+		}
+		for _, name := range append([]string{e.ID}, e.Aliases...) {
+			key := strings.ToLower(e.Harness + "\x00" + name)
+			if prior, exists := used[key]; exists {
+				return fmt.Errorf("duplicate catalog model or alias %q for harness %q (also %q)", name, e.Harness, prior)
+			}
+			used[key] = e.ID
+		}
+	}
+	return nil
+}
+
+func entryKey(e Entry) string { return e.Harness + "\x00" + e.ID }
 
 // parseTier converts the JSON string tier to a core.Tier constant.
 func parseTier(s string) (core.Tier, bool) {

@@ -30,7 +30,6 @@ func TestClassify(t *testing.T) {
 		{"refactor", "refactor the auth module to use the new client", Medium},
 		{"implement feature", "implement the feature to export sales as CSV", Medium},
 		{"debug context", "debug why the webhook handler drops events", Medium},
-		{"code review", "list the Go files and do a code review without changing anything", Medium},
 
 		// Complex — architecture, cross-system
 		{"architecture", "rearchitect the payment flow across services", Complex},
@@ -38,6 +37,7 @@ func TestClassify(t *testing.T) {
 		{"security audit", "do a security audit of the auth layer", Complex},
 		{"race condition", "there is a race condition in the observer, find it", Complex},
 		{"redesign", "redesign the checkout to support multi-tenant", Complex},
+		{"code review", "list the Go files and do a code review without changing anything", Complex},
 
 		// Default — no signal
 		{"empty", "", Medium},

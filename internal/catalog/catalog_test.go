@@ -5,6 +5,7 @@
 package catalog
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/tiagovilasboas/harness-downshift/internal/core"
@@ -100,10 +101,10 @@ func TestLookupByID_FamilyMatchHaiku(t *testing.T) {
 
 func TestLookupByID_FamilyMatchCodexFrontier(t *testing.T) {
 	c := Load()
-	// gpt-6-astra-v2 starts with family "gpt-6-astra" → frontier
-	m, ok := c.LookupByID("codex", "gpt-6-astra-v2")
+	// gpt-5.6-sol-v2 starts with family "gpt-5.6-sol" → frontier
+	m, ok := c.LookupByID("codex", "gpt-5.6-sol-v2")
 	if !ok {
-		t.Fatal("gpt-6-astra-v2 should match via family")
+		t.Fatal("gpt-5.6-sol-v2 should match via family")
 	}
 	if m.Tier != core.TierFrontier {
 		t.Errorf("family match tier = %s, want frontier", m.Tier)
@@ -173,10 +174,10 @@ func TestLookupByID_OpenRouterHaikuSmall(t *testing.T) {
 
 func TestLookupByID_OpenRouterCodex(t *testing.T) {
 	c := Load()
-	// "openai/gpt-6-astra" → strip → exact match
-	m, ok := c.LookupByID("codex", "openai/gpt-6-astra")
+	// "openai/gpt-5.6-sol" → strip → exact match
+	m, ok := c.LookupByID("codex", "openai/gpt-5.6-sol")
 	if !ok {
-		t.Fatal("openai/gpt-6-astra should match after normalisation")
+		t.Fatal("openai/gpt-5.6-sol should match after normalisation")
 	}
 	if m.Tier != core.TierFrontier {
 		t.Errorf("tier = %s, want frontier", m.Tier)
@@ -299,5 +300,25 @@ func TestParseTier(t *testing.T) {
 		if ok && got != tc.want {
 			t.Errorf("parseTier(%q) = %v, want %v", tc.s, got, tc.want)
 		}
+	}
+}
+
+func TestParse_RejectsDuplicateModelOrAlias(t *testing.T) {
+	data := []byte(`{"entries":[{"id":"first","harness":"codex","tier":"small"},{"id":"second","aliases":["first"],"harness":"codex","tier":"mid"}]}`)
+	if _, err := parse(data); err == nil {
+		t.Fatal("parse accepted duplicate model ID/alias")
+	}
+}
+
+func TestMergeEntries_PreservesDefaultsAndOverridesTarget(t *testing.T) {
+	base := []Entry{{ID: "luna", Harness: "codex", Tier: "small"}, {ID: "terra", Harness: "codex", Tier: "mid"}}
+	override := []Entry{{ID: "terra", Harness: "codex", Tier: "frontier"}, {ID: "custom", Harness: "codex", Tier: "frontier"}}
+	merged := mergeEntries(base, override)
+	encoded, err := json.Marshal(merged)
+	if err != nil {
+		t.Fatalf("marshal merged: %v", err)
+	}
+	if string(encoded) == "" || len(merged) != 3 || merged[0].ID != "luna" || merged[1].Tier != "frontier" {
+		t.Fatalf("merge did not preserve and override entries: %#v", merged)
 	}
 }

@@ -28,7 +28,7 @@ type ProviderConfig struct {
 var defaultProviders = []ProviderConfig{
 	{Name: "Anthropic", APIURL: "https://api.anthropic.com/v1/models", EnvKey: "ANTHROPIC_API_KEY", Harness: "claude-code"},
 	{Name: "OpenAI", APIURL: "https://api.openai.com/v1/models", EnvKey: "OPENAI_API_KEY", Harness: "codex"},
-	{Name: "xAI", APIURL: "https://api.x.ai/v1/models", EnvKey: "XAI_API_KEY", Harness: "grok"},
+	{Name: "xAI", APIURL: "https://api.x.ai/v1/models", EnvKey: "XAI_API_KEY", Harness: "claude-code"},
 }
 
 // Check queries each provider's model list API, diffs against the catalog,

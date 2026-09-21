@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/tiagovilasboas/harness-downshift/internal/catalog"
@@ -83,11 +84,19 @@ func PullWithProviders(cat CatalogReader, providers []ProviderConfig, client *ht
 		merged = append(merged, existing[k])
 		seen[k] = true
 	}
+	var appended []catalog.Entry
 	for k, e := range existing {
 		if !seen[k] {
-			merged = append(merged, e)
+			appended = append(appended, e)
 		}
 	}
+	sort.Slice(appended, func(i, j int) bool {
+		if appended[i].Harness != appended[j].Harness {
+			return appended[i].Harness < appended[j].Harness
+		}
+		return appended[i].ID < appended[j].ID
+	})
+	merged = append(merged, appended...)
 
 	if err := writeOverride(merged); err != nil {
 		fmt.Fprintf(errW, "error writing catalog: %v\n", err)

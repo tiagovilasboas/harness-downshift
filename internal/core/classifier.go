@@ -64,6 +64,7 @@ func compileSignals() []signal {
 		{`\bre-?write\b`, 2, Complex},
 		{`\bre-?design\b`, 3, Complex},
 		{`\bsecurity\s+(audit|review)\b`, 3, Complex},
+		{`\bcode\s+review\b`, 3, Complex},
 		{`\bcross-system\b`, 3, Complex},
 		{`\bdistributed\b`, 2, Complex},
 		{`\brace\s+condition\b`, 3, Complex},
@@ -85,7 +86,6 @@ func compileSignals() []signal {
 		{`\bmodule\b`, 1, Medium},
 		{`\bacross\s+\w+\s+files\b`, 2, Medium},
 		{`\bdebug\b`, 2, Medium},
-		{`\bcode\s+review\b`, 3, Medium},
 		{`\brevis(?:ar|e|ão|oes|ões)\b`, 2, Medium},
 
 		// SIMPLE — one isolated change.

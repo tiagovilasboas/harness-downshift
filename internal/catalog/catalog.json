@@ -142,16 +142,28 @@
       "output_cost_per_1m": 5.00
     },
     {
-      "id": "gpt-6-astra",
-      "aliases": ["astra"],
-      "family": "gpt-6-astra",
+      "id": "gpt-5.6-sol",
+      "aliases": ["sol"],
+      "family": "gpt-5.6-sol",
       "provider": "openai",
       "harness": "codex",
       "tier": "frontier",
       "effort_scale": "reasoning_effort",
       "effort_map": { "low": "low", "medium": "medium", "high": "high" },
-      "input_cost_per_1m": 0.00,
-      "output_cost_per_1m": 0.00
+      "input_cost_per_1m": 2.00,
+      "output_cost_per_1m": 10.00
+    },
+    {
+      "id": "gpt-6-astra",
+      "aliases": ["astra"],
+      "family": "gpt-6-astra",
+      "provider": "openai",
+      "harness": "codex",
+      "tier": "unknown",
+      "effort_scale": "reasoning_effort",
+      "effort_map": { "low": "low", "medium": "medium", "high": "high" },
+      "input_cost_per_1m": 5.00,
+      "output_cost_per_1m": 25.00
     }
   ]
 }

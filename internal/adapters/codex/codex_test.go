@@ -84,7 +84,7 @@ func TestHandle_UpshiftsComplexSubagent(t *testing.T) {
 	}
 }
 
-func TestHandle_OKKeepsGear(t *testing.T) {
+func TestHandle_OKRewritesReasoningEffort(t *testing.T) {
 	midID := catID(core.TierMid)
 	ev := codex.Event{
 		ToolName: "spawn_agent",
@@ -95,11 +95,15 @@ func TestHandle_OKKeepsGear(t *testing.T) {
 		}`),
 	}
 	out, note := codex.Handle(ev, cat)
-	if note != "" {
-		t.Errorf("expected no change, got %q", note)
+	if note == "" {
+		t.Error("expected an effort-routing note")
 	}
-	if out.HookSpecificOutput.UpdatedInput != nil {
-		t.Error("must not rewrite when gear is already right")
+	m := decodeUpdated(t, out)
+	if m["model"] != midID {
+		t.Errorf("model = %v, want %s", m["model"], midID)
+	}
+	if m["reasoning_effort"] != "medium" {
+		t.Errorf("reasoning_effort = %v, want medium", m["reasoning_effort"])
 	}
 }
 

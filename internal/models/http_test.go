@@ -74,7 +74,7 @@ func TestCheck_DetectsKnownAndNewModels(t *testing.T) {
 	defer anthropicSrv.Close()
 
 	// OpenAI returns only known models (no new).
-	openaiSrv := serveModels(t, openAIResponse("gpt-5.6-luna", "gpt-5.6-terra", "gpt-6-astra"))
+	openaiSrv := serveModels(t, openAIResponse("gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol"))
 	defer openaiSrv.Close()
 
 	t.Setenv("ANTHROPIC_API_KEY", "test-key")
@@ -97,7 +97,7 @@ func TestCheck_DetectsKnownAndNewModels(t *testing.T) {
 }
 
 func TestCheck_AllKnownNoNew(t *testing.T) {
-	srv := serveModels(t, openAIResponse("gpt-5.6-luna", "gpt-5.6-terra", "gpt-6-astra"))
+	srv := serveModels(t, openAIResponse("gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol"))
 	defer srv.Close()
 
 	t.Setenv("OPENAI_API_KEY", "test-key")

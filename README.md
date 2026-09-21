@@ -259,15 +259,16 @@ it and the subagent keeps the session model unchanged.
 
 On Codex, downshift routes **two axes at once**: the model tier and the
 reasoning effort (`low` for trivial work, up to `high` for the frontier tier).
-A trivial subagent drops from `gpt-6-astra` at high effort to `gpt-5.6-luna`
+A trivial subagent drops from `gpt-5.6-sol` at high effort to `gpt-5.6-luna`
 at low effort — cheap on both counts.
 
-Downshift rewrites a spawn only when the task needs a **different tier** than
-the session model. For example, `list the Go files and do a code review` is a
-medium task; a `gpt-5.6-terra` session is already the medium tier, so it stays
-on that model. To make a downgrade visibly testable, use a purely mechanical
-prompt such as `Use a subagent to only list the .go files. Do not change
-anything.`
+Downshift always applies the selected reasoning effort. A code review is a
+frontier task, so a `gpt-5.6-terra` session routes its subagent to
+`gpt-5.6-sol` at high effort. Astra is deliberately excluded from automatic
+routing: reserve it for an explicit user choice on exceptional, token-heavy
+investigations. A purely mechanical prompt such as `Use a
+subagent to only list the .go files. Do not change anything.` is routed to
+`gpt-5.6-luna` at low effort.
 
 > Codex's `multi_agent_v2` spawn schema is still evolving. downshift preserves
 > the reserved fields and fails open, but pin the exact Codex build you deploy
