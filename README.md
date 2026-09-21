@@ -200,6 +200,74 @@ These are harness-engineering principles first, implementation choices second:
 
 ---
 
+## Where this fits
+
+Teams running agents at scale are converging on the same shape: harnesses
+(Cursor, Kiro, Claude Code, Codex) on the edge, and a **central corporate layer**
+underneath them — governance, AI FinOps, observability, and a
+**router / orchestrator** deciding which model handles what, across providers.
+
+`harness-downshift` is a small, open, focused piece of that picture. It is the
+**router at the delegation layer**: the deterministic rule that decides which
+model a subagent gets, so cost per token is controlled by design rather than
+reconstructed on the invoice. One brain, many harness adapters — the same
+"all harnesses point at a central decision" architecture, in the open.
+
+---
+
+## Contributing
+
+Contributions are welcome — especially prompts the classifier gets wrong.
+
+**The single most useful contribution** is a real subagent prompt that
+`downshift` misroutes. Open an issue with:
+
+- the prompt text (redact anything private),
+- the complexity `downshift try "<prompt>"` returned,
+- the complexity you expected, and why.
+
+That feedback is what tunes the classifier against reality instead of against
+our assumptions.
+
+**Other ways to help:**
+
+- **New harness adapter** — implement `internal/adapters/<harness>/` following
+  the Claude Code adapter as a template. The `core` package is harness-agnostic;
+  an adapter only translates a `core.Decision` into that harness's mechanism.
+- **Model catalog updates** — prices and model ids change. Corrections to
+  `internal/core/models.go` (with a source) are always welcome.
+- **Classifier signals** — new keyword/pattern signals for a complexity class,
+  with a test case that proves the improvement.
+
+**Ground rules:**
+
+- Keep `go test -race -cover ./...` green.
+- Every classifier change ships with a table-driven test case.
+- Small, focused PRs. Conventional commits in English.
+- Be honest about limits in docs — no overselling what a heuristic can do.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
+
+---
+
+## References & inspiration
+
+- **Martin Fowler — [Harness engineering for coding agent users](https://martinfowler.com/articles/harness-engineering.html).**
+  The `Agent = Model + Harness` framing and the case for engineering the harness
+  rather than chasing models. This article is the conceptual backbone of the
+  project.
+- **[The Harness Effect: How Orchestration Design Sets the Token Economics of
+  Enterprise Agentic AI](https://arxiv.org/abs/2607.06906)** — names the harness
+  as the decisive lever against token maxing.
+- **[Triage: Routing Software Engineering Tasks to Cost-Effective LLM Tiers](https://arxiv.org/abs/2604.07494)**
+  — evidence that task signals can pick a cheaper tier without losing quality.
+- **[claude-model-router-hook](https://github.com/tzachbon/claude-model-router-hook)**
+  by tzachbon — a Claude-Code-only router that showed the `PreToolUse`
+  `updatedInput` mechanism works. `harness-downshift` generalizes the idea
+  across harnesses in a single Go binary.
+
+---
+
 ## Status
 
 Early. The Claude Code adapter works and is tested end-to-end. Cursor and Codex
