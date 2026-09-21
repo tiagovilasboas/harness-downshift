@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Tiago de Carvalho Vilas Boas.
-// Licensed under the Business Source License 1.1.
+// SPDX-License-Identifier: BUSL-1.1
 // Commercial use requires a licence — see LICENSE for terms.
 
 // Package core is the harness-agnostic brain of harness-downshift.
