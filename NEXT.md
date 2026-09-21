@@ -1,45 +1,52 @@
-# What was built — and what comes next
+# harness-downshift — state, gaps, and roadmap
 
-This document captures what harness-downshift is today, the honest gaps,
-and the architectural direction for the next phase.
+This document tracks what is done, what is known to be incomplete,
+and what comes next. Updated after each refactor wave.
 
 ---
 
-## What was built (v0.1.0-beta.1)
+## What was built
 
 ### Core routing engine
 
-- `internal/core` — harness-agnostic brain: `Complexity`, `Tier`, `Effort`,
-  `Verdict`, `Decision`, `Route()`.
-- Deterministic classifier: scored keyword signals, tie-breaks toward higher
-  complexity, no LLM in the loop.
-- `Effort` as a first-class dimension alongside `Tier` — cheap work runs low
-  reasoning, hard work runs high, regardless of harness.
+- `internal/core/classifier.go` — task text → Complexity (scored, deterministic, no LLM).
+- `internal/core/signals.go` — `RawSignals` exported table; signals are data, not code.
+- `internal/core/policy.go` — Tier, Effort, Verdict, Decision, `Route()`.
+  - `ShouldRewriteModel()`, `ShouldApplyEffort()`, `ShouldPreserveExplicitModel()`.
+- `internal/core/capabilities.go` — `HarnessCapabilities` with named vars per harness
+  (`ClaudeCodeCaps`, `CursorCaps`, `CodexCaps`). `RewritePlan` + `Plan(caps, resolver)`.
+- `internal/core/escalation.go` — `EscalationIntent` (Trivial/Normal/Review/Preserved).
+  - `IntentFor(prompt, cls, Decision, Resolver)` — maps complexity + explicit_only to intent.
+  - `ReviewIntent` separates deep-analysis tasks (code review, security audit, RFC) from
+    complex construction tasks — both frontier tier, but purpose is now explicit.
+- `internal/core/resolver.go` — `Resolver` interface covering all catalog operations.
 
 ### Catalog system
 
-- `internal/catalog` — model data lives in JSON, not in Go source.
-- Embedded `catalog.json` compiled into the binary via `go:embed`.
-- User override at `~/.harness-downshift/catalog.json` — loaded at startup,
-  fail-open to embedded on any error.
-- `LookupByID`: three-layer matching — exact → alias → family prefix.
-  Version-agnostic: `claude-opus-4-9` matches family `claude-opus` automatically.
-- OpenRouter normalisation: `anthropic/claude-opus-4-8` → strips prefix →
-  matches as `claude-opus-4-8`. Transparent for users routing through
-  meta-providers.
-- `EffortFor(harness, modelID, effort)` translates abstract effort to the
-  harness-native string via per-entry `effort_map` in the catalog.
-- `models list/check/pull` — live catalog discovery from provider APIs
-  (OpenAI, Anthropic, xAI) with timeout, fail-open, and idempotent pull.
+- `internal/catalog/catalog.go` — `Catalog` implements `core.Resolver`.
+  - Three-layer `LookupByID`: exact → alias → family prefix.
+  - OpenRouter normalisation: `anthropic/claude-opus-4-8` → `claude-opus-4-8`.
+  - `IsExplicitOnly` — honors `routing: "explicit_only"` entries.
+- `internal/catalog/policy.go` — `mergeEntries` + `validateEntries`.
+  - Merge: override replaces matching base entries; net-new entries appended sorted.
+  - Validation: no duplicate IDs/aliases per harness; no overlapping family prefixes.
+- `internal/catalog/catalog.json` — embedded model data: IDs, families, costs,
+  effort_maps, routing flags. Includes `gpt-6-astra` with `routing: "explicit_only"`.
+- User override at `~/.harness-downshift/catalog.json` — loaded at startup, fail-open.
 
 ### Adapters
 
-- **claudecode** — `PreToolUse` + `Task` matcher + `updatedInput.model`
-- **cursor** — `preToolUse` + `Task` matcher + `updated_input.model`
-- **codex** — `PreToolUse` + `spawn_agent` matcher + `updatedInput.model`
-  + `reasoning_effort` from catalog `effort_map`
-- **grok** — config recipe only (`[subagents.roles]` in `config.toml`).
-  Grok's hook API is allow/deny only; no `updatedInput` support.
+- **claudecode** — `PreToolUse` + `Task` + `updatedInput.model`
+- **cursor** — `preToolUse` + `Task` + `updated_input.model`
+- **codex** — `PreToolUse` + `spawn_agent` + `updatedInput.model` + `reasoning_effort`
+- **grok** — config recipe only (`[subagents.roles]` in `config.toml`)
+
+All three hook adapters:
+- Call `Plan(caps, resolver)` — no routing logic, no capability checks inline.
+- Set `PreserveExplicit` when current model is `explicit_only`.
+- Unmarshal tool_input to `map[string]any`, mutate only `model`/`reasoning_effort`,
+  re-marshal the full map — **all sibling fields preserved** (timeout, description,
+  run_in_background, fork_turns, etc.).
 
 ### Infrastructure
 
@@ -47,8 +54,9 @@ and the architectural direction for the next phase.
 - `goreleaser` releases: macOS arm64/amd64, Linux arm64/amd64, Windows amd64.
 - `install.sh` one-liner installer with PATH guidance.
 - BSL-1.1 licence with tiered liquidated damages and contributor assignment.
-- `llms.txt` + `AGENTS.md` for AI agent awareness and commercial use alerts.
+- `llms.txt` + `AGENTS.md` for AI agent awareness.
 - `SPDX-License-Identifier: BUSL-1.1` on every Go source file.
+- `models list/check/pull` — live catalog discovery from provider APIs.
 
 ### Test coverage
 
@@ -57,150 +65,123 @@ and the architectural direction for the next phase.
 | `internal/adapters/claudecode` | ~91% |
 | `internal/adapters/codex` | ~95% |
 | `internal/adapters/cursor` | ~84% |
-| `internal/catalog` | ~83% |
-| `internal/core` | ~80% |
+| `internal/catalog` | ~85% |
+| `internal/core` | ~82% |
 | `internal/hookutil` | 100% |
 | `internal/models` | ~94% |
+| `cmd/downshift` | ~70% |
 
 ---
 
-## Known gaps (technical)
-
-| Gap | Impact | Effort |
-|---|---|---|
-| `updatedInput` replaces entire tool_input — sibling fields like `timeout` or `run_in_background` are silently dropped | Subagents using non-standard fields may behave unexpectedly | Medium |
-| `cmd/downshift` has 0% test coverage | Binary entrypoint has no automated tests | Medium |
-| Classifier has no feedback loop | Signals are static; can't learn from real misclassifications in production | Large |
-| Cursor free / legacy plans silently discard `updated_input.model` | Routing appears to work but has no effect | Harness limitation — documented |
-| Claude Code free has no subagents + blocks network | `go install` fails; no subagents to route | Harness limitation — documented |
-
----
-
-## Next phase — policy separation
-
-The current design works but mixes routing policy into multiple places:
-- Catalog knows about harness capabilities implicitly (via `effort_map` presence)
-- Adapters each re-implement effort translation logic
-- The concept of "never automatically choose a top model unless explicitly requested" is not expressed anywhere
-
-The next architectural split:
-
-### `core/` sub-packages
+## Architecture
 
 ```
 core/
-  classification/    — complexity from text (current classifier.go)
-  routing_policy/    — recommended tier + effort from complexity
-  capabilities/      — per-harness: can_rewrite_model, can_rewrite_effort, hook_mechanism
-  escalation_policy/ — when to never auto-choose a top model; explicit-only models
+  classifier.go       — complexity from text (scored signals)
+  signals.go          — RawSignals table (exported, testable, tunable)
+  policy.go           — routing: tier, effort, verdict, preserve policy
+  capabilities.go     — HarnessCapabilities per harness; RewritePlan; Plan()
+  escalation.go       — EscalationIntent (Trivial/Normal/Review/Preserved)
+  resolver.go         — Resolver interface
+
+catalog/
+  catalog.go          — Catalog struct, Load(), Resolver implementation
+  policy.go           — merge + validation rules (catalog_policy)
+  catalog.json        — embedded model data
+
+adapters/
+  claudecode/         — PreToolUse + Task + updatedInput.model
+  cursor/             — preToolUse + Task + updated_input.model
+  codex/              — PreToolUse + spawn_agent + model + reasoning_effort
+
+cmd/downshift/        — hook runners (thin), try subcommand, models subcommands
 ```
 
-**`capabilities`** would replace per-adapter `if` logic with a central table:
-
-```go
-type HarnessCapabilities struct {
-    CanRewriteModel  bool
-    CanRewriteEffort bool
-    HookMechanism   string // "PreToolUse", "config", etc.
-}
-```
-
-**`escalation_policy`** would express the rule:
-> `gpt-6-astra` (or any `explicit_only` model) is never chosen automatically.
-> If the current model is astra, preserve it; if no model is specified, route
-> to the tier's default, not to astra.
-
-This becomes `ShouldPreserveExplicitModel(decision, currentModelID) bool` in core.
-
-### `catalog/catalog_policy`
-
-Extract from `catalog.go` into a dedicated module:
-- Override merge validation (no duplicate family conflicts)
-- Cross-harness model leakage prevention
-- Safe fallback chain
-- Deterministic entry ordering
-
-### Adapters become pure protocol translators
-
-After the above, each adapter reduces to:
-1. Decode event
-2. Call `core.Route(prompt, harness, currentID, resolver)`
-3. Check `capabilities[harness].CanRewriteModel`
-4. If yes, encode `updatedInput` with `decision.Model.ID`
-5. If effort supported, encode `decision.Effort` via `resolver.EffortFor(...)`
-6. Fail-open
-
-No routing logic, no capability checks, no policy — just encoding.
-
-### `explicit_only` catalog field
-
-Add to `catalog.json` entries:
-
-```json
-{
-  "id": "gpt-6-astra",
-  "family": "gpt-6-astra",
-  "explicit_only": true,
-  ...
-}
-```
-
-The routing engine checks this before assigning a target:
-if `entry.ExplicitOnly && currentModelID != entry.ID` → skip this model for routing.
+**Key invariants:**
+- `core` never imports `catalog` or any adapter. Dependency: `catalog → core`.
+- Adapters only call `Plan(caps, resolver)` and encode the result. No routing logic.
+- `explicit_only` models are never chosen automatically; preserved when current.
+- `updatedInput` preserves all sibling fields — only `model` and `reasoning_effort` mutated.
+- Every signal in `RawSignals` is structurally tested (compile, class, weight, no duplicates).
 
 ---
 
-## Next harnesses to evaluate
+## Known gaps
 
-| Harness | Subagents? | Hook type | Likely mechanism |
+| Gap | Impact | Status |
+|---|---|---|
+| Classifier has no feedback loop — `RawSignals` is static | Heuristic quality plateaus without real misclassification data | Open — requires production data |
+| Cursor free / legacy plans silently discard `updated_input.model` | Routing runs but has no effect | Harness limitation — documented |
+| Claude Code free has no subagents + blocks network | `go install` fails; nothing to route | Harness limitation — documented |
+
+**Previously listed — now resolved:**
+
+| Was | Resolution |
+|---|---|
+| `updatedInput` replaces entire tool_input — sibling fields dropped | Already correct since adapter refactor. Regression tests added to all three adapters. |
+| `cmd/downshift` 0% coverage | Tests added in `fix(hooks)` (78abf8e). |
+
+---
+
+## What comes next
+
+### New harnesses
+
+The architecture is ready for more adapters. Adding one requires:
+1. Research the harness's subagent hook protocol.
+2. Implement `internal/adapters/<harness>/<harness>.go` — thin translator only.
+3. Add catalog entries in `catalog.json`.
+4. Wire a subcommand in `cmd/downshift/main.go`.
+
+Candidates to evaluate:
+
+| Harness | Subagents? | Hook type | Status |
 |---|---|---|---|
-| Gemini CLI | To verify | Unknown | To research |
+| Gemini CLI | To verify | Unknown | Not researched |
+| GitHub Copilot CLI | To verify | PreToolUse? | Not researched |
+| OpenCode | To verify | Hook system | Not researched |
 | Aider | No native subagents | — | Not applicable |
-| Continue (VS Code) | To verify | Plugin API | To research |
-| GitHub Copilot CLI | To verify | PreToolUse? | To research |
-| OpenCode | To verify | Hook system | To research |
+
+### Classifier feedback loop
+
+Once users report misrouted prompts (via GitHub issues), misclassified cases
+can be added to `classifier_edge_test.go` and the signals tuned accordingly.
+`RawSignals` is already exported and structurally validated, so signal changes
+are safe to make and test.
+
+### Prompt for adding a new harness adapter
+
+Use this in Claude Code or Codex. Works against the current codebase:
+
+```
+Add a new harness adapter for [HARNESS NAME] to harness-downshift.
+
+Research:
+1. Does [HARNESS NAME] have subagents? What tool name triggers a spawn?
+2. Does its PreToolUse (or equivalent) hook support input rewriting (updatedInput)?
+3. Does it support effort/reasoning parameters?
+
+If rewriting is supported:
+1. Create internal/adapters/<harness>/<harness>.go following the claudecode
+   adapter as the template. The adapter must:
+   - Decode the spawn event.
+   - Call core.Route(prompt, harnessID, currentModelID, resolver).
+   - Call decision.Plan(<HarnessCaps>, resolver) using a new named var in core/capabilities.go.
+   - Encode only model + effort into the hook output; re-marshal the full tool_input map.
+   - Fail-open on any error (return allow, exit 0).
+2. Add catalog entries in internal/catalog/catalog.json.
+3. Add the harness subcommand in cmd/downshift/main.go.
+4. Write table-driven tests injecting catalog.Load() as the resolver.
+5. Run go test -race ./... and confirm all green.
+6. Do not commit or push. Report: files changed, tests passing, routing
+   behaviour for trivial/normal/review tasks, and any protocol limitation.
+```
 
 ---
 
-## Prompt for adding a new harness (after policy separation is done)
-
-Once `HarnessCapabilities` and `escalation_policy` exist, use this prompt in
-Claude Code / Codex to wire a new adapter correctly:
-
-```
-Continue the harness-downshift refactor for [HARNESS NAME].
-
-Context:
-- Shared routing policy is in internal/core:
-  - Decision.ShouldRewriteModel()
-  - Decision.ShouldApplyEffort()
-  - Decision.Plan(core.HarnessCapabilities)
-- Adapters must remain thin protocol translators only.
-- The shared policy applies:
-  - trivial work → small/low
-  - normal implementation → mid/medium
-  - code review / complex analysis → frontier/high
-- explicit_only models are never chosen automatically; preserve only when
-  the user explicitly selected them.
-- Unknown source models still receive the recommended target model.
-- Keep catalog policy inside internal/catalog.
-- Do not alter files outside the repository.
-- Add focused regression tests and run `go test -race ./...`.
-- Build the artifact and report the exact hook/config required.
-- Do not commit or push. Return: files changed, tests run, routing behavior
-  for trivial/normal/code-review/explicit tasks, and any protocol limitation.
-```
-
-**Note:** this prompt only works correctly after the policy separation above
-is implemented. Running it against the current codebase will generate broken
-code referencing non-existent methods.
-
----
-
-## Immediate actions (before next code phase)
+## Immediate non-code actions
 
 1. Upload `docs/img/social-preview.png` to GitHub Settings → Social preview
 2. Register at INPI (Brazil) — ~BRL 200, Lei 9.609/98
 3. Register at US Copyright Office — USD 65, unlocks USD 150k statutory damages
 4. Publish a dev.to post on harness-native routing
-5. Respond to Anthropic issue #69545 (done) + monitor #95769 for engagement
