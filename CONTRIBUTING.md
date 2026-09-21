@@ -29,12 +29,16 @@ guard.
 cmd/downshift/                 # binary: hook mode + try + models subcommands
 internal/core/                 # harness-agnostic brain
   classifier.go                #   task text → complexity (scored, deterministic)
+  signals.go                   #   RawSignals table (exported, tunable)
+  escalation.go                #   EscalationIntent (Trivial/Normal/Review/Preserved)
   models.go                    #   Tier, Effort types (no model ID strings)
   policy.go                    #   complexity → tier → Decision (Route)
+  capabilities.go              #   HarnessCapabilities per harness; Plan()
   resolver.go                  #   Resolver interface (catalog implements this)
-internal/catalog/              # model data (IDs, costs, effort maps)
+internal/catalog/              # model data (IDs, costs, effort maps, routing flags)
   catalog.go                   #   Load(), LookupByID (exact→alias→family), EffortFor
-  catalog.json                 #   embedded default — edit JSON to update models
+  policy.go                    #   mergeEntries + validateEntries
+  catalog.json                 #   embedded default (committed + go:embed'd)
 internal/adapters/<harness>/   # one adapter per harness
   claudecode/                  #   PreToolUse + updatedInput for Claude Code
   cursor/                      #   preToolUse + updated_input for Cursor
@@ -72,7 +76,12 @@ To add or update a model:
 
 1. Edit `catalog.json` directly — no Go changes needed.
 2. Add a `family` field (the stable prefix for version-agnostic matching).
-3. Open a PR with a source link (provider docs or pricing page).
+3. Add `"routing": "explicit_only"` if the model should never be an automatic
+   routing target (e.g. reserved top-tier models like `gpt-6-astra`).
+4. Use `{ "_section": "your label" }` objects as human-readable section
+   headers — the parser silently skips any entry where `id` or `harness` is
+   empty, so these are safe to include.
+5. Open a PR with a source link (provider docs or pricing page).
 
 Or run `downshift models pull` with the provider's API key to discover new
 models automatically (they arrive with `tier: "unknown"` for you to assign).

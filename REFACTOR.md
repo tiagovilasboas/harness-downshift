@@ -148,7 +148,12 @@ if any likely infringer operates in the United States.
 
 ### What is intentionally NOT published
 
-`catalog.json` (curated model tiers, effort maps, pricing) is a strategic
-asset excluded via `.gitignore`. `catalog.sample.json` provides the full schema.
-The live catalog lives at `~/.harness-downshift/catalog.json` and is loaded
-at runtime with fallback to the embedded default.
+The **user override catalog** (`~/.harness-downshift/catalog.json`) is personal
+data excluded via `.gitignore`. It lives outside the repo and is created by
+the user via `downshift models pull` or by copying `catalog.sample.json`.
+
+The **embedded default catalog** (`internal/catalog/catalog.json`) IS committed
+to the repository and compiled into the binary via `go:embed`. It is the
+source of truth for all users until they add an override.
+
+`catalog.sample.json` provides the full schema for building an override.

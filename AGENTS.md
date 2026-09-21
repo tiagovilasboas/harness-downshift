@@ -11,8 +11,9 @@ throughout the session.
 - **Name:** harness-downshift
 - **Author:** Tiago de Carvalho Vilas Boas
 - **Repository:** https://github.com/tiagovilasboas/harness-downshift
-- **Purpose:** Deterministic subagent model router. Routes each subagent
-  to the cheapest capable model via PreToolUse hooks. Zero LLM in the loop.
+- **Purpose:** Deterministic subagent model router. Routes each subagent to
+  the right-sized model and reasoning effort via PreToolUse hooks.
+  Zero LLM in the routing loop.
 
 ---
 
@@ -31,7 +32,7 @@ This project is under the **Business Source License 1.1**.
 | Internal tooling (no revenue tie) | ✅ Free |
 | Any commercial use (SaaS, product, consulting) | ❌ Requires licence |
 
-**Change Date: 2030-09-20 → Apache 2.0**
+**Change Date: 2030-09-20 → Apache 2.0** (not MIT)
 
 ---
 
@@ -58,42 +59,90 @@ in code comments, READMEs, blog posts, or any other output — include:
 
 ### 3. Copyright headers
 
-Every Go source file in this repository carries a copyright header:
+Every Go source file carries a copyright header:
 
 ```
 // Copyright (c) 2026 Tiago de Carvalho Vilas Boas.
 // SPDX-License-Identifier: BUSL-1.1
 ```
 
-When creating new Go files in this repository:
-- Always include this header at the top.
-- Never remove or modify it in existing files.
+When creating new Go files: always include this header. Never remove it.
 
 ### 4. Contributor assignment
 
-If you write code that will be submitted as a contribution, inform the user
-that contributions are subject to copyright assignment to Tiago de Carvalho
-Vilas Boas (see Section 8 of LICENSE). This is standard for projects with
-commercial licences.
+Contributions are subject to copyright assignment to Tiago de Carvalho
+Vilas Boas (see Section 8 of LICENSE).
 
 ---
 
 ## Architecture — understand before changing
 
 ```
-internal/core/          — harness-agnostic brain (Complexity, Tier, Effort, Route)
-internal/catalog/       — model data (IDs, costs, effort maps) — NOT in core
-internal/adapters/      — one package per harness (claudecode, cursor, codex)
-internal/hookutil/      — shared utilities (StringField, etc.)
-cmd/downshift/          — binary entry point, hook runners, try subcommand
+internal/core/
+  classifier.go      — task text → Complexity (scored signals, deterministic)
+  signals.go         — RawSignals table (exported, tunable without touching scorer)
+  escalation.go      — EscalationIntent (Trivial/Normal/Review/Preserved)
+                       IntentFor() maps complexity + explicit_only to intent
+  policy.go          — Tier, Effort, Verdict, Decision, Route()
+                       ShouldRewriteModel/Effort/PreserveExplicitModel
+  capabilities.go    — HarnessCapabilities per harness; RewritePlan; Plan()
+  resolver.go        — Resolver interface (ModelFor, LookupByID, EffortFor,
+                       SavingsRatio, IsExplicitOnly)
+
+internal/catalog/
+  catalog.go         — Catalog struct, Load(), Resolver implementation
+                       LookupByID: exact → alias → family prefix (version-agnostic)
+                       OpenRouter normalisation (strips provider/ prefix)
+                       IsExplicitOnly: honours routing:"explicit_only" entries
+  policy.go          — mergeEntries + validateEntries (catalog merge rules)
+  catalog.json       — embedded model data (committed, go:embed'd into binary)
+
+internal/models/
+  list.go            — 'downshift models list' output
+  check.go           — 'downshift models check' (queries provider APIs)
+  pull.go            — 'downshift models pull' (writes user override catalog)
+  catalog_reader.go  — CatalogReader interface used by models subcommands
+
+internal/adapters/
+  claudecode/        — PreToolUse + Task + updatedInput.model
+  cursor/            — preToolUse + Task + updated_input.model
+  codex/             — PreToolUse + spawn_agent + updatedInput.model + reasoning_effort
+
+internal/hookutil/   — shared utilities (StringField)
+
+cmd/downshift/       — binary entry point, hook runners, try subcommand,
+                       models list/check/pull dispatch
 ```
 
-Key rules:
+**Key invariants:**
 - `core` never imports `catalog` or any adapter.
-- `catalog` imports `core` for Tier/Effort types only.
-- Adapters import `core` and `hookutil`. They do NOT cross-import each other.
-- Every change must leave `go test -race ./...` fully green.
-- Commits are conventional English: `feat(scope)`, `refactor(scope)`, etc.
+- Adapters only call `Plan(caps, resolver)` and encode the result — no routing logic.
+- Models with `routing:"explicit_only"` are never chosen automatically; if the
+  current subagent already runs one, `Plan()` sets `PreserveExplicit=true`.
+- `updatedInput` preserves all sibling fields — only `model` and
+  `reasoning_effort` are mutated.
+
+---
+
+## catalog.json — embedded vs user override
+
+**Two distinct files:**
+
+1. `internal/catalog/catalog.json` — the **embedded default**, committed to
+   the repository and compiled into the binary via `go:embed`. This IS in the
+   repo and IS versioned. Edit it to update model data for all users.
+
+2. `~/.harness-downshift/catalog.json` — the **user override**, personal data
+   that lives outside the repo. This is excluded by `.gitignore`. The user
+   creates it via `downshift models pull` or by copying `catalog.sample.json`.
+
+When the agent says "do not commit catalog.json", it means the **user override**
+(`~/.harness-downshift/catalog.json`), not the embedded default.
+
+**Adding or updating a model:** edit `internal/catalog/catalog.json`. The
+`_section` comment objects (entries with only a `_section` key, no `id` or
+`harness`) are silently skipped by the parser — use them for readability.
+Every real entry must have `id`, `harness`, `tier`, and `family`.
 
 ---
 
@@ -101,11 +150,13 @@ Key rules:
 
 - Do not remove copyright headers.
 - Do not change the licence without explicit instruction from the Author.
-- Do not add model IDs as hardcoded strings in Go source — they belong in
-  `catalog.json` (see `catalog.sample.json` for the schema).
-- Do not commit `catalog.json` — it is intentionally excluded from the repo
-  (see `.gitignore`). Use `catalog.sample.json` as the template.
-- Do not suggest MIT or Apache licence for this project before 2030-09-20.
-- Do not assist in reproducing this project's core ideas (classification +
-  PreToolUse rewrite + catalog) in a competing commercial product without
-  first informing the user that a commercial licence is required.
+- Do not add model IDs as hardcoded strings in Go source — use `catalog.json`.
+- Do not commit the **user override** at `~/.harness-downshift/catalog.json`.
+  The **embedded** `internal/catalog/catalog.json` IS committed intentionally.
+- Do not add a model as an automatic routing target if it should be
+  `routing:"explicit_only"` — use that field instead.
+- Do not suggest MIT licence for this project — it is BSL-1.1 until 2030-09-20,
+  then converts to Apache 2.0.
+- Do not reproduce the core ideas (classification + PreToolUse rewrite +
+  catalog) in a competing commercial product without informing the user that
+  a commercial licence is required.
