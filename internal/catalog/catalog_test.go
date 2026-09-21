@@ -431,3 +431,79 @@ func TestLoad_WarnsAndFallsBackWhenOverrideCannotBeRead(t *testing.T) {
 		t.Errorf("warnings = %q, want override read warning", warnings.String())
 	}
 }
+
+// --- load: path where override parses but fails validateEntries (could not merge) ---
+
+func TestLoad_WarnsAndFallsBackWhenMergeFails(t *testing.T) {
+	// Write a catalog where an override entry adds a new model whose family
+	// prefix overlaps with an existing family in the embedded base, causing
+	// validateEntries(merged) to fail with "overlapping model families".
+	// The base has "claude-haiku" as a family for claude-code.
+	// If we add a new entry with family "claude" (a prefix of "claude-haiku"),
+	// the merged validation rejects it.
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	dir := filepath.Join(home, ".harness-downshift")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	// A new ID that won't collide in the override alone, but whose family "claude"
+	// is a prefix of "claude-haiku" in the base → merged validation fails.
+	overlap := `{"version":"1","entries":[
+		{"id":"claude-new-model","family":"claude","harness":"claude-code","tier":"small"}
+	]}`
+	if err := os.WriteFile(filepath.Join(dir, "catalog.json"), []byte(overlap), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	var warnings bytes.Buffer
+	c := load(&warnings)
+	if c == nil || len(c.Entries()) == 0 {
+		t.Fatal("load() must fall back to embedded catalog on merge failure")
+	}
+	w := warnings.String()
+	// Either "could not merge" (from validateEntries) or "could not parse" (if
+	// decode rejects the overlap earlier). Either path means fall-back worked.
+	if !strings.Contains(w, "could not merge") && !strings.Contains(w, "could not parse") {
+		t.Errorf("warnings = %q, want warning about merge or parse failure", w)
+	}
+}
+
+// --- Catalog.EffortFor (method) ---
+
+func TestCatalogEffortFor_KnownModel(t *testing.T) {
+	c := Load()
+	// gpt-5.6-sol is the codex frontier; its effort_map maps "low" → "low"
+	frontierID := c.ModelFor("codex", core.TierFrontier).ID
+	got := c.EffortFor("codex", frontierID, core.EffortLow)
+	if got == "" {
+		t.Error("EffortFor must return a non-empty effort string for a known model")
+	}
+}
+
+func TestCatalogEffortFor_UnknownModel_Fallback(t *testing.T) {
+	c := Load()
+	// Unknown model → falls back to effort.String()
+	got := c.EffortFor("codex", "completely-unknown-xyz", core.EffortHigh)
+	if got != "high" {
+		t.Errorf("EffortFor unknown model = %q, want 'high' (effort.String() fallback)", got)
+	}
+}
+
+// --- EffortValue: entry with no effort_map key for the requested level ---
+
+func TestEffortValue_MissingKey_FallsBackToEffortString(t *testing.T) {
+	// An entry with an empty effort_map has no keys at all.
+	e := Entry{EffortMap: map[string]string{}}
+	got := EffortValue(e, core.EffortMid)
+	if got != "medium" {
+		t.Errorf("EffortValue with empty map = %q, want 'medium' (effort.String())", got)
+	}
+}
+
+func TestEffortValue_NilEffortMap_FallsBackToEffortString(t *testing.T) {
+	e := Entry{} // EffortMap is nil
+	got := EffortValue(e, core.EffortHigh)
+	if got != "high" {
+		t.Errorf("EffortValue with nil map = %q, want 'high'", got)
+	}
+}
