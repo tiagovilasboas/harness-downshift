@@ -59,7 +59,7 @@ func compileSignals() []signal {
 	}{
 		// COMPLEX — architecture, cross-system, security, migrations.
 		{`\barchitect\w*\b`, 3, Complex},
-		{`\bre-?architect\b`, 3, Complex},
+		{`\bre-?architect\w*\b`, 3, Complex},
 		{`\bmigrat\w*\b`, 3, Complex},
 		{`\bre-?write\b`, 2, Complex},
 		{`\bre-?design\b`, 3, Complex},
@@ -89,7 +89,7 @@ func compileSignals() []signal {
 		// SIMPLE — one isolated change.
 		{`\badd\s+(a\s+)?(field|param|flag|method|function)\b`, 2, Simple},
 		{`\bfix\s+(the\s+)?bug\b`, 2, Simple},
-		{`\bwrite\s+(a\s+)?(function|test|helper)\b`, 2, Simple},
+		{`\bwrite\s+(a\s+)?(function|tests?\b|helper)\b`, 2, Simple},
 		{`\bexplain\b`, 2, Simple},
 		{`\bwhat\s+(is|does|are)\b`, 1, Simple},
 		{`\bsingle\s+(file|function)\b`, 2, Simple},
