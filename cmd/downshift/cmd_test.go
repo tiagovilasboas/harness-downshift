@@ -9,11 +9,15 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"os"
 	"strings"
 	"testing"
 
+	"github.com/tiagovilasboas/harness-downshift/internal/adapters/claudecode"
+	"github.com/tiagovilasboas/harness-downshift/internal/adapters/codex"
+	"github.com/tiagovilasboas/harness-downshift/internal/adapters/cursor"
 	"github.com/tiagovilasboas/harness-downshift/internal/catalog"
 	"github.com/tiagovilasboas/harness-downshift/internal/core"
 )
@@ -32,6 +36,9 @@ func captureStdout(fn func()) string {
 }
 
 var cmdCat = catalog.Load()
+
+// claudeCodeFrontierID returns the current frontier model ID for claude-code.
+func claudeCodeFrontierID() string { return cmdCat.ModelFor("claude-code", core.TierFrontier).ID }
 
 // --- runTry ---
 
@@ -76,7 +83,7 @@ func TestRunTry_CodeReviewIntent(t *testing.T) {
 }
 
 func TestRunTry_WithCurrentModel_ShowsVerdict(t *testing.T) {
-	frontierID := cmdCat.ModelFor("claude-code", core.TierFrontier).ID
+	frontierID := claudeCodeFrontierID()
 	out := captureStdout(func() {
 		runTry(cmdCat, []string{"rename the userId variable", "claude-code", frontierID})
 	})
@@ -170,4 +177,95 @@ func TestRunModels_Pull_NoKeys(t *testing.T) {
 			t.Errorf("pull with no keys rc = %d, want 0", rc)
 		}
 	})
+}
+
+// --- runHookAdapter ---
+
+// hookEvent builds a minimal PreToolUse JSON event for the given harness.
+func hookEvent(toolName, modelID, prompt string) []byte {
+	return []byte(`{"hook_event_name":"PreToolUse","tool_name":"` + toolName +
+		`","model":"` + modelID + `","tool_input":{"prompt":"` + prompt +
+		`","model":"` + modelID + `"}}`)
+}
+
+func TestRunHookAdapter_ClaudeCode_Downshift(t *testing.T) {
+	frontierID := claudeCodeFrontierID()
+	event := hookEvent("Task", frontierID, "rename the userId variable")
+
+	out := captureStdout(func() {
+		rc := runHookAdapter(
+			bytes.NewReader(event),
+			func(b []byte) (claudecode.Event, error) { var e claudecode.Event; return e, json.Unmarshal(b, &e) },
+			func(e claudecode.Event) (any, string) { return claudecode.Handle(e, cmdCat) },
+			printAllow,
+		)
+		if rc != 0 {
+			t.Errorf("rc = %d, want 0", rc)
+		}
+	})
+	if !strings.Contains(out, `"permissionDecision":"allow"`) {
+		t.Errorf("expected allow decision; got:\n%s", out)
+	}
+	if !strings.Contains(out, `"updatedInput"`) {
+		t.Errorf("expected updatedInput (downshift); got:\n%s", out)
+	}
+}
+
+func TestRunHookAdapter_Cursor_Downshift(t *testing.T) {
+	frontierID := claudeCodeFrontierID() // cursor also uses claude-code catalog
+	event := []byte(`{"hook_event_name":"preToolUse","tool_name":"Task","model_id":"` +
+		frontierID + `","tool_input":{"task":"rename the userId variable","model":"` + frontierID + `"}}`)
+
+	out := captureStdout(func() {
+		runHookAdapter(
+			bytes.NewReader(event),
+			func(b []byte) (cursor.Event, error) { var e cursor.Event; return e, json.Unmarshal(b, &e) },
+			func(e cursor.Event) (any, string) { return cursor.Handle(e, cmdCat) },
+			printCursorAllow,
+		)
+	})
+	if !strings.Contains(out, `"permission":"allow"`) {
+		t.Errorf("expected cursor allow; got:\n%s", out)
+	}
+}
+
+func TestRunHookAdapter_Codex_Downshift(t *testing.T) {
+	frontierID := cmdCat.ModelFor("codex", core.TierFrontier).ID
+	event := []byte(`{"hook_event_name":"PreToolUse","tool_name":"spawn_agent","model":"` +
+		frontierID + `","tool_input":{"message":"rename the userId variable","model":"` + frontierID + `"}}`)
+
+	out := captureStdout(func() {
+		runHookAdapter(
+			bytes.NewReader(event),
+			func(b []byte) (codex.Event, error) { var e codex.Event; return e, json.Unmarshal(b, &e) },
+			func(e codex.Event) (any, string) { return codex.Handle(e, cmdCat) },
+			printCodexAllow,
+		)
+	})
+	if !strings.Contains(out, `"permissionDecision":"allow"`) {
+		t.Errorf("expected codex allow decision; got:\n%s", out)
+	}
+	if !strings.Contains(out, `"updatedInput"`) {
+		t.Errorf("expected updatedInput (downshift); got:\n%s", out)
+	}
+	if !strings.Contains(out, `"reasoning_effort"`) {
+		t.Errorf("expected reasoning_effort in codex output; got:\n%s", out)
+	}
+}
+
+func TestRunHookAdapter_MalformedJSON_FailOpen(t *testing.T) {
+	out := captureStdout(func() {
+		rc := runHookAdapter(
+			bytes.NewReader([]byte(`{not valid json`)),
+			func(b []byte) (claudecode.Event, error) { var e claudecode.Event; return e, json.Unmarshal(b, &e) },
+			func(e claudecode.Event) (any, string) { return claudecode.Handle(e, cmdCat) },
+			printAllow,
+		)
+		if rc != 0 {
+			t.Errorf("malformed JSON must fail-open (rc=0), got %d", rc)
+		}
+	})
+	if !strings.Contains(out, `"permissionDecision":"allow"`) {
+		t.Errorf("fail-open must print allow; got:\n%s", out)
+	}
 }
