@@ -21,9 +21,9 @@
 **Your subagents are running Opus to rename a variable. You're paying frontier
 prices for work a cheap model does just as well.**
 
-`harness-downshift` puts every subagent in the right gear. Trivial work goes to
-the cheap model. Hard work gets the frontier model's torque. You stop burning
-budget on the straights and keep the power for the curves.
+`harness-downshift` puts every subagent in the right tier. Mechanical work goes
+to the cheap model. Hard thinking gets the frontier model. You stop burning
+budget on the routine tasks and keep frontier power for the ones that need it.
 
 Hook adapters for Claude Code, Cursor, and Codex today, plus a config recipe for
 Grok CLI. Any harness with controllable subagents next.
@@ -44,7 +44,7 @@ downshift try "rename the userId variable" claude-code
 # → TRIVIAL task → downshift to claude-haiku-4 (~95% cheaper)
 
 downshift try "rearchitect the auth module to support multi-tenant" claude-code
-# → COMPLEX task → upshift to claude-opus-4-8 (needs more torque)
+# → COMPLEX task → upshift to claude-opus-4-8 (frontier tier)
 ```
 
 **Step 3 — Add the hook** to `~/.claude/settings.json`:
@@ -82,7 +82,7 @@ the model's reasoning; it engineers the **delegation layer** — the exact point
 where a subagent's model is chosen — to optimize three things at once:
 
 - **Token efficiency** — cheap models for cheap work; frontier tokens spent only where they earn it.
-- **Cost reduction** — trivial subagents drop from frontier to small tier (~95% cheaper per call).
+- **Cost reduction** — trivial subagents drop from frontier to small tier (~95% cheaper per call, based on published list prices: haiku-class ~$0.80/1M tokens vs opus-class ~$15/1M). Session-level savings depend on your task mix — see [Cost evidence](#cost-evidence).
 - **Control & predictability** — deterministic, rule-based routing you can read, test, and audit. No "Auto" black box, no LLM guessing in the loop.
 
 Agent = Model + Harness. You can't cheaply swap the model. You *can* engineer
@@ -109,21 +109,21 @@ loop.
 
 ---
 
-## The gearbox model
+## The tier model
 
-A good driver doesn't stay in high gear through a hairpin, and doesn't crawl in
-first gear on the highway. They match the gear to the road.
+The right model for the task. Not the most expensive one by default.
 
-| Road | Task | Gear | Model |
+| Task complexity | Examples | Tier | Model |
 |---|---|---|---|
-| Flat straight | rename, format, git commit, fix typo | high, cheap | **haiku-class** |
-| Rolling hills | add a field, fix a bug, one function | mid | **sonnet-class** |
-| Winding road | refactor a module, feature across files | mid | **sonnet-class** |
-| Sharp curve | rearchitect, migrate, race condition | low, torque | **opus-class** |
+| Trivial | rename, format, git commit, fix typo | small | **haiku-class** |
+| Simple | add a field, fix a bug, one function | mid | **sonnet-class** |
+| Medium | refactor a module, feature across files | mid | **sonnet-class** |
+| Complex | rearchitect, migrate, race condition | frontier | **opus-class** |
 
-`downshift` reads the task and picks the gear. On the straights it **downshifts**
-to save fuel. On the curves it **upshifts** for control. The "Auto" your harness
-ships with does neither — it leaves you in one gear the whole drive.
+`downshift` reads the task and picks the tier. Mechanical work goes to the cheap
+model. Hard reasoning gets the frontier model. The "Auto" your harness ships
+with does neither — it leaves every subagent on the most expensive model the
+whole session.
 
 ---
 
@@ -194,7 +194,7 @@ Add the hook to `~/.claude/settings.json`:
 }
 ```
 
-That's it. Every subagent your session spawns now runs in the right gear.
+That's it. Every subagent your session spawns now runs on the right-sized model.
 
 ## Install (Cursor)
 
@@ -299,8 +299,8 @@ only *block* a spawn, which isn't the job.
 
 There's a second wrinkle: as of this writing Grok Build ships **one coding
 model** (`grok-4.6`, with *configurable reasoning*), not a small/mid/frontier
-model ladder. So on Grok the gearbox isn't "swap the model" — it's **dial the
-reasoning effort**. Cheap work runs `grok-4.6` at low effort; the hard curves
+model ladder. So on Grok the routing isn't "swap the model" — it's **dial the
+reasoning effort**. Cheap work runs `grok-4.6` at low effort; the hard tasks
 run it at high effort. Same principle, different knob.
 
 Grok exposes both as **first-class config**, which is more robust than a runtime
@@ -454,6 +454,78 @@ Deterministic, scored, no LLM:
 It's a heuristic, not an oracle. It's tuned to be conservative: it downshifts
 only when the task is clearly mechanical, and upshifts the moment a task looks
 hard.
+
+---
+
+## Cost evidence
+
+**Per-call cost differential (published list prices, September 2026):**
+
+| Model | Input ($/1M tokens) | Output ($/1M tokens) |
+|---|---|---|
+| claude-haiku-4 (small tier) | ~$0.80 | ~$4 |
+| claude-sonnet-4 (mid tier) | ~$3 | ~$15 |
+| claude-opus-4 (frontier tier) | ~$15 | ~$75 |
+
+A single frontier subagent call grepping a directory is roughly 19× more
+expensive than the same call on haiku. That's the raw per-call case.
+
+**Session-level savings depend on your task mix.** The table below is a
+placeholder — fill it in after running `downshift` for 30 days with your real
+workload:
+
+```
+Last 30 days
+─────────────────────────────────────
+Subagents total        _,___
+  Downshifted (TRIVIAL/SIMPLE → small)  _,___   ___%
+  Mid-shifted (MEDIUM → sonnet)         _,___   ___%
+  Unchanged (COMPLEX → frontier)        _,___   ___%
+
+Without downshift   $______
+With downshift      $______
+
+Saved               $______  (__._%)
+─────────────────────────────────────
+```
+
+> **Want to contribute real numbers?** Run downshift for a sprint, open an issue
+> with your before/after cost, task volume, and false-downshift observations.
+> First real dataset goes into this README with credit.
+
+---
+
+## Classifier benchmark
+
+The classifier is deterministic and tested against 40+ documented prompts.
+A formal benchmark with confusion matrix is on the roadmap for the next milestone.
+
+The format will be:
+
+```
+benchmark/tasks.json   — 500–1 000 real coding tasks, hand-labelled T/S/M/C
+```
+
+Expected output shape:
+
+```
+                 Predicted
+              T    S    M    C
+Actual T    ---   --   --   --
+Actual S     --  ---   --   --
+Actual M     --   --  ---   --
+Actual C     --   --   --  ---
+
+False downshift rate (COMPLEX → small/mid):  __.__%
+```
+
+**Why false downshift rate is the key metric:** saving $1 per call while routing
+a complex task to a weak model costs far more in rework. The classifier is tuned
+to err toward *higher* complexity on ambiguous signals, never the other direction.
+
+> Track [#benchmark](https://github.com/tiagovilasboas/harness-downshift/issues)
+> for progress. Contributions of labelled task datasets are especially welcome —
+> see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
@@ -681,21 +753,14 @@ with the prompt, what `downshift try` returned, and what you expected.
 
 **Change Date: 2030-09-20** — on that date the code converts automatically to Apache 2.0.
 
-### Damages for unauthorised commercial use
+### Commercial licensing
 
-Tiered liquidated damages apply retroactively to the first date of commercial use:
+If your use case falls in the "commercial licence required" row, reach out
+before shipping — not after. Early conversations are straightforward; retroactive
+enforcement is not. Contact: [github.com/tiagovilasboas](https://github.com/tiagovilasboas).
 
-| Organisation size | Per instance / per month |
-|---|---|
-| Individual / Micro (< 5 employees or < USD 250k revenue) | USD 10k / BRL 55k |
-| Startup (5–50 employees or USD 250k–5M revenue) | USD 50k / BRL 275k |
-| Growth (51–500 employees or USD 5M–100M revenue) | USD 150k / BRL 825k |
-| Enterprise (> 500 employees or > USD 100M revenue) | USD 500k / BRL 2.75M |
-
-**Or 20% of gross monthly revenue** attributable to the product using the code — whichever is greater.
-Minimum per enforcement action: **USD 250k / BRL 1.375M**. Wilful infringement: **5× multiplier**.
-
-See [`LICENSE`](LICENSE) for the full terms, jurisdiction choices, and the 15-day cure window.
+The full terms, including enforcement provisions and the 15-day cure window,
+are in [`LICENSE`](LICENSE).
 
 ### AI agent notice
 
@@ -707,7 +772,7 @@ instructed to alert on commercial use and attribute work to the Author.
 
 The Author intends to register this work with:
 - **INPI (Brazil)** — Programa de Computador, under Lei 9.609/98
-- **US Copyright Office** — for statutory damages up to USD 150k per wilful infringement
+- **US Copyright Office**
 
 For commercial licensing: [github.com/tiagovilasboas](https://github.com/tiagovilasboas)
 
