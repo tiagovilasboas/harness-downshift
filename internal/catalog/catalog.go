@@ -22,7 +22,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	_ "embed"
@@ -201,64 +200,6 @@ func build(f catalogFile) *Catalog {
 	}
 	return c
 }
-
-func mergeEntries(base, override []Entry) []Entry {
-	byKey := make(map[string]Entry)
-	for _, e := range override {
-		if e.ID != "" && e.Harness != "" {
-			byKey[entryKey(e)] = e
-		}
-	}
-	merged := make([]Entry, 0, len(base)+len(override))
-	seen := make(map[string]bool)
-	for _, e := range base {
-		key := entryKey(e)
-		if replacement, ok := byKey[key]; ok {
-			merged = append(merged, replacement)
-			seen[key] = true
-			continue
-		}
-		merged = append(merged, e)
-	}
-	var appended []Entry
-	for key, e := range byKey {
-		if !seen[key] {
-			appended = append(appended, e)
-		}
-	}
-	sort.Slice(appended, func(i, j int) bool { return entryKey(appended[i]) < entryKey(appended[j]) })
-	return append(merged, appended...)
-}
-
-func validateEntries(entries []Entry) error {
-	used := make(map[string]string)
-	families := make(map[string][]string)
-	for _, e := range entries {
-		if e.ID == "" || e.Harness == "" {
-			continue // section/comment entries
-		}
-		for _, name := range append([]string{e.ID}, e.Aliases...) {
-			key := strings.ToLower(e.Harness + "\x00" + name)
-			if prior, exists := used[key]; exists {
-				return fmt.Errorf("duplicate catalog model or alias %q for harness %q (also %q)", name, e.Harness, prior)
-			}
-			used[key] = e.ID
-		}
-		if e.Family != "" {
-			key := strings.ToLower(e.Harness)
-			family := strings.ToLower(e.Family)
-			for _, prior := range families[key] {
-				if strings.HasPrefix(family, prior) || strings.HasPrefix(prior, family) {
-					return fmt.Errorf("overlapping model families %q and %q for harness %q", family, prior, e.Harness)
-				}
-			}
-			families[key] = append(families[key], family)
-		}
-	}
-	return nil
-}
-
-func entryKey(e Entry) string { return e.Harness + "\x00" + e.ID }
 
 // parseTier converts the JSON string tier to a core.Tier constant.
 func parseTier(s string) (core.Tier, bool) {
@@ -444,6 +385,8 @@ func (c *Catalog) IsExplicitOnly(harness, modelID string) bool {
 	}
 	return entry.Routing == "explicit_only"
 }
+
+// EffortFor implements core.Resolver. It translates a core.Effort level to the
 // harness-native string for the given model ID using the entry's effort_map.
 // Falls back to effort.String() ("low"/"medium"/"high") when no entry or map
 // is found — safe to call for any harness/model combination.
