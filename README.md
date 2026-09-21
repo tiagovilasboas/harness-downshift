@@ -3,10 +3,18 @@
 [![Build](https://github.com/tiagovilasboas/harness-downshift/actions/workflows/ci.yml/badge.svg)](https://github.com/tiagovilasboas/harness-downshift/actions/workflows/ci.yml)
 [![License: BUSL-1.1](https://img.shields.io/badge/license-BUSL--1.1-orange.svg)](LICENSE)
 [![Go 1.27](https://img.shields.io/badge/go-1.27-00ADD8.svg)](https://go.dev)
+[![Status: beta](https://img.shields.io/badge/status-beta%20%E2%80%94%20practical%20testing-yellow)](https://github.com/tiagovilasboas/harness-downshift/releases)
 
 > **Cut subagent costs** by routing every subagent to the right-sized model
 > for its task. A deterministic model router that runs as a hook — no extra
 > tokens, no LLM in the loop, single Go binary.
+
+> **⚠️ Beta — practical testing phase.** The router and adapters work. The
+> gap is the harnesses themselves: model selection for subagents is an
+> evolving feature in Claude Code, Cursor, and Codex, and not every plan
+> or build honours the hook rewrite. See [Plan compatibility](#plan-compatibility--read-before-installing)
+> before installing. Expect the situation to improve over the next few weeks
+> as harnesses broaden their own orchestration support.
 
 ![harness-downshift](docs/img/hero.svg)
 
@@ -599,12 +607,36 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
 
 ## Status
 
-Hook adapters for Claude Code, Cursor, and Codex are shipped, tested, and
-end-to-end verified. Grok CLI is supported through config (its hook API is
-allow/deny only — see the Grok section for why). The catalog is decoupled from
-Go source — update model data by editing JSON, no recompile needed. The
-classifier is tested against 40+ documented prompts, including edge cases and
-known tie-break scenarios.
+**Beta — practical testing phase.**
+
+The router is built and tested: adapters for Claude Code, Cursor, and Codex,
+deterministic classifier covering 40+ documented prompts, catalog with
+version-agnostic family matching, OpenRouter normalisation, and
+`explicit_only` model preservation.
+
+**The real gap is at the harness level, not in this tool.**
+Model selection for subagents is an evolving feature in every harness:
+
+- **Claude Code** — subagent model rewrite via PreToolUse + Task works, but
+  only on paid plans (Pro/Max/Teams/API). Free plan has no real subagents.
+- **Cursor** — the hook fires, but on free and legacy request-based plans
+  `updated_input.model` is silently discarded. Works on Pro/Ultra with
+  expanded model selection.
+- **Codex** — works with `multi_agent_v2` enabled. The v2 spawn schema is
+  still evolving upstream.
+- **Grok** — hook is allow/deny only; routing is via `config.toml`.
+
+Over the next few weeks, as harnesses broaden their own orchestration support,
+the practical coverage of this tool will grow without any code changes on our
+side. The architecture is ready — it's the harnesses catching up.
+
+If the hook fires and the model rewrite takes effect on your setup, the tool
+is fully operational. If it fires but the rewrite is silently ignored by the
+harness, that is a harness limitation documented in
+[Plan compatibility](#plan-compatibility--read-before-installing).
+
+**Feedback most wanted:** prompts the classifier gets wrong. Open an issue
+with the prompt, what `downshift try` returned, and what you expected.
 
 ## License
 
