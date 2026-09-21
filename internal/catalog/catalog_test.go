@@ -124,9 +124,6 @@ func TestLookupByID_FamilyMatchCaseInsensitive(t *testing.T) {
 func TestLookupByID_ExactWinsOverFamily(t *testing.T) {
 	c := Load()
 	// Exact ID match must take precedence over family prefix.
-	// "claude-sonnet-4-6" is in catalog; if family also matched claude-sonnet,
-	// the result must still be the exact entry (same tier here, but the model
-	// ID must come from the exact match, not a different family hit).
 	exact := c.ModelFor("claude-code", core.TierMid)
 	m, ok := c.LookupByID("claude-code", exact.ID)
 	if !ok {
@@ -134,6 +131,111 @@ func TestLookupByID_ExactWinsOverFamily(t *testing.T) {
 	}
 	if m.ID != exact.ID {
 		t.Errorf("exact match returned wrong ID %q, want %q", m.ID, exact.ID)
+	}
+}
+
+// --- OpenRouter "provider/model-id" normalisation ---
+
+func TestLookupByID_OpenRouterExactMatch(t *testing.T) {
+	c := Load()
+	// "anthropic/claude-opus-4-8" → strip prefix → exact match on "claude-opus-4-8"
+	m, ok := c.LookupByID("claude-code", "anthropic/claude-opus-4-8")
+	if !ok {
+		t.Fatal("OpenRouter-prefixed exact ID should match after normalisation")
+	}
+	if m.Tier != core.TierFrontier {
+		t.Errorf("tier = %s, want frontier", m.Tier)
+	}
+}
+
+func TestLookupByID_OpenRouterFamilyMatch(t *testing.T) {
+	c := Load()
+	// "anthropic/claude-opus-4-9" → strip → "claude-opus-4-9" → family "claude-opus"
+	m, ok := c.LookupByID("claude-code", "anthropic/claude-opus-4-9")
+	if !ok {
+		t.Fatal("OpenRouter-prefixed version-bumped ID should match via family")
+	}
+	if m.Tier != core.TierFrontier {
+		t.Errorf("tier = %s, want frontier", m.Tier)
+	}
+}
+
+func TestLookupByID_OpenRouterHaikuSmall(t *testing.T) {
+	c := Load()
+	m, ok := c.LookupByID("claude-code", "anthropic/claude-haiku-5")
+	if !ok {
+		t.Fatal("anthropic/claude-haiku-5 should match via family")
+	}
+	if m.Tier != core.TierSmall {
+		t.Errorf("tier = %s, want small", m.Tier)
+	}
+}
+
+func TestLookupByID_OpenRouterCodex(t *testing.T) {
+	c := Load()
+	// "openai/gpt-5.3-codex" → strip → exact match
+	m, ok := c.LookupByID("codex", "openai/gpt-5.3-codex")
+	if !ok {
+		t.Fatal("openai/gpt-5.3-codex should match after normalisation")
+	}
+	if m.Tier != core.TierFrontier {
+		t.Errorf("tier = %s, want frontier", m.Tier)
+	}
+}
+
+func TestLookupByID_OpenRouterUnknownProvider(t *testing.T) {
+	c := Load()
+	// "somevendor/claude-haiku-5" → strip → "claude-haiku-5" → family match
+	m, ok := c.LookupByID("claude-code", "somevendor/claude-haiku-5")
+	if !ok {
+		t.Fatal("any-provider/claude-haiku-5 should match via family after normalisation")
+	}
+	if m.Tier != core.TierSmall {
+		t.Errorf("tier = %s, want small", m.Tier)
+	}
+}
+
+func TestLookupByID_OpenRouterTrulyUnknown(t *testing.T) {
+	c := Load()
+	_, ok := c.LookupByID("claude-code", "somevendor/total-unknown-xyz-12345")
+	if ok {
+		t.Error("genuinely unknown model should return false even with provider prefix")
+	}
+}
+
+// --- Grok installed in non-native harness ---
+
+func TestLookupByID_GrokInCursor(t *testing.T) {
+	c := Load()
+	m, ok := c.LookupByID("cursor", "grok-4.6")
+	if !ok {
+		t.Fatal("grok-4.6 should be found in cursor catalog")
+	}
+	if m.Tier != core.TierFrontier {
+		t.Errorf("grok in cursor tier = %s, want frontier", m.Tier)
+	}
+}
+
+func TestLookupByID_GrokVersionBumpInCursor(t *testing.T) {
+	c := Load()
+	// grok-4.7 not in catalog → family "grok" → frontier
+	m, ok := c.LookupByID("cursor", "grok-4.7")
+	if !ok {
+		t.Fatal("grok-4.7 should match via family 'grok' in cursor")
+	}
+	if m.Tier != core.TierFrontier {
+		t.Errorf("tier = %s, want frontier", m.Tier)
+	}
+}
+
+func TestLookupByID_GrokInClaudeCode(t *testing.T) {
+	c := Load()
+	m, ok := c.LookupByID("claude-code", "grok-4.6")
+	if !ok {
+		t.Fatal("grok-4.6 should be found in claude-code catalog")
+	}
+	if m.Tier != core.TierFrontier {
+		t.Errorf("grok in claude-code tier = %s, want frontier", m.Tier)
 	}
 }
 

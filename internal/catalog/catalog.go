@@ -206,6 +206,11 @@ func (c *Catalog) ModelFor(harness string, tier core.Tier) core.Model {
 //  3. Family prefix match — the ID starts with the entry's family string
 //     (e.g. "claude-opus-4-9" matches family "claude-opus"). Case-insensitive.
 //
+// OpenRouter model IDs arrive in "provider/model-id" format
+// (e.g. "anthropic/claude-opus-4-8", "openai/gpt-5.3-codex"). LookupByID
+// strips the provider prefix before matching, so OpenRouter works
+// transparently without any special configuration from the user.
+//
 // This makes routing version-agnostic: a new model version is automatically
 // mapped to the same tier as the previous version in the same family, without
 // any catalog update.
@@ -214,15 +219,22 @@ func (c *Catalog) LookupByID(harness, modelID string) (core.Model, bool) {
 		return core.Model{}, false
 	}
 
+	// Normalise: strip the "provider/" prefix used by OpenRouter and similar
+	// meta-providers (e.g. "anthropic/claude-opus-4-8" → "claude-opus-4-8").
+	normalised := normaliseModelID(modelID)
+
 	// 1 & 2: exact / alias (already merged in byID map, O(1)).
-	if h, ok := c.byID[harness]; ok {
-		if m, ok := h[modelID]; ok {
-			return m, true
+	// Try both the original ID and the normalised form.
+	for _, id := range uniqueStrings(modelID, normalised) {
+		if h, ok := c.byID[harness]; ok {
+			if m, ok := h[id]; ok {
+				return m, true
+			}
 		}
 	}
 
 	// 3: family prefix — version-agnostic fallback.
-	lower := strings.ToLower(modelID)
+	lower := strings.ToLower(normalised)
 	for _, fe := range c.byFamily[harness] {
 		if strings.HasPrefix(lower, fe.prefix) {
 			return fe.model, true
@@ -230,6 +242,24 @@ func (c *Catalog) LookupByID(harness, modelID string) (core.Model, bool) {
 	}
 
 	return core.Model{}, false
+}
+
+// normaliseModelID strips the "provider/" prefix from OpenRouter-style model
+// IDs. "anthropic/claude-opus-4-8" → "claude-opus-4-8". IDs without a slash
+// are returned unchanged.
+func normaliseModelID(id string) string {
+	if i := strings.Index(id, "/"); i >= 0 {
+		return id[i+1:]
+	}
+	return id
+}
+
+// uniqueStrings returns a deduplicated slice preserving order.
+func uniqueStrings(a, b string) []string {
+	if a == b {
+		return []string{a}
+	}
+	return []string{a, b}
 }
 
 // SavingsRatio returns how much cheaper `to` is versus `from` as a fraction.
@@ -261,29 +291,33 @@ func EffortValue(e Entry, effort core.Effort) string {
 }
 
 // EntryFor returns the raw Entry for a given harness+modelID. Uses the same
-// three-strategy lookup as LookupByID (exact → alias → family prefix).
+// three-strategy lookup as LookupByID (exact → alias → family prefix), including
+// OpenRouter "provider/model-id" normalisation.
 func (c *Catalog) EntryFor(harness, modelID string) (Entry, bool) {
 	if modelID == "" {
 		return Entry{}, false
 	}
-	lower := strings.ToLower(modelID)
+	normalised := normaliseModelID(modelID)
 
-	// Exact and alias match.
-	for _, e := range c.entries {
-		if e.Harness != harness {
-			continue
-		}
-		if e.ID == modelID {
-			return e, true
-		}
-		for _, a := range e.Aliases {
-			if a == modelID {
+	// Exact and alias match — try both original and normalised.
+	for _, id := range uniqueStrings(modelID, normalised) {
+		for _, e := range c.entries {
+			if e.Harness != harness {
+				continue
+			}
+			if e.ID == id {
 				return e, true
+			}
+			for _, a := range e.Aliases {
+				if a == id {
+					return e, true
+				}
 			}
 		}
 	}
 
 	// Family prefix fallback.
+	lower := strings.ToLower(normalised)
 	for _, e := range c.entries {
 		if e.Harness == harness && e.Family != "" {
 			if strings.HasPrefix(lower, strings.ToLower(e.Family)) {
