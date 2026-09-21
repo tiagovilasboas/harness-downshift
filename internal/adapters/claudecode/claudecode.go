@@ -72,7 +72,7 @@ func Handle(ev Event, r ...core.Resolver) (Output, string) {
 	}
 	decision := core.Route(subPrompt, harnessID, currentModel, res)
 
-	if decision.Verdict != core.VerdictDownshift && decision.Verdict != core.VerdictUpshift {
+	if !decision.ShouldRewriteModel() {
 		return allow(), ""
 	}
 

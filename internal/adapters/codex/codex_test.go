@@ -188,6 +188,18 @@ func TestHandle_FallsBackToEventModel(t *testing.T) {
 	}
 }
 
+func TestHandle_UnknownCurrentModelStillRoutes(t *testing.T) {
+	ev := codex.Event{ToolName: "spawn_agent", ToolInput: json.RawMessage(`{"message":"do a code review"}`)}
+	out, note := codex.Handle(ev, cat)
+	if note == "" {
+		t.Fatal("expected a routing note")
+	}
+	m := decodeUpdated(t, out)
+	if m["model"] != catID(core.TierFrontier) {
+		t.Errorf("model = %v, want %s", m["model"], catID(core.TierFrontier))
+	}
+}
+
 func TestHandle_MalformedInputFailsOpen(t *testing.T) {
 	ev := codex.Event{
 		ToolName:  "spawn_agent",

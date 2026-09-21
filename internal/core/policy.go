@@ -151,3 +151,20 @@ func (d Decision) Summary() string {
 			d.Complexity, d.Model.ID, d.Tier)
 	}
 }
+
+// ShouldRewriteModel reports whether an adapter should replace the harness
+// model input. It is deliberately harness-agnostic: every adapter receives
+// the same behavior for upshifts, downshifts, and missing source models.
+func (d Decision) ShouldRewriteModel() bool {
+	if d.Model.ID == "" {
+		return false
+	}
+	return d.Verdict == VerdictDownshift || d.Verdict == VerdictUpshift || d.Verdict == VerdictUnknown
+}
+
+// ShouldApplyEffort reports whether a harness with native effort controls
+// should inject the selected effort. This includes VerdictOK so a child does
+// not accidentally inherit a lower effort from a same-tier parent.
+func (d Decision) ShouldApplyEffort() bool {
+	return d.Model.ID != ""
+}

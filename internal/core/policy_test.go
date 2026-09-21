@@ -152,3 +152,15 @@ func TestDecisionSummary_OK(t *testing.T) {
 		t.Errorf("Summary() = %q, want 'right gear'", s)
 	}
 }
+
+func TestDecisionRewritePolicy(t *testing.T) {
+	if !(core.Decision{Model: core.Model{ID: "target"}, Verdict: core.VerdictUnknown}).ShouldRewriteModel() {
+		t.Error("unknown source model must be routed")
+	}
+	if (core.Decision{Model: core.Model{ID: "target"}, Verdict: core.VerdictOK}).ShouldRewriteModel() {
+		t.Error("same-tier model must not be replaced by generic adapters")
+	}
+	if !(core.Decision{Model: core.Model{ID: "target"}, Verdict: core.VerdictOK}).ShouldApplyEffort() {
+		t.Error("same-tier model must receive native effort")
+	}
+}

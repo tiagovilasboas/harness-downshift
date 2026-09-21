@@ -233,7 +233,7 @@ tool names:
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "(^Agent$|spawn_agent$)",
+        "matcher": "(^Agent$|.*spawn_agent$)",
         "hooks": [
           { "type": "command", "command": "downshift codex" }
         ]

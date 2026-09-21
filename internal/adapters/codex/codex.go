@@ -81,7 +81,7 @@ func Handle(ev Event, r ...core.Resolver) (Output, string) {
 	// selected model already matches, rewrite the spawn so the child receives
 	// the effort associated with this task (for example, terra/medium rather
 	// than inheriting terra/low from its parent).
-	if decision.Verdict != core.VerdictDownshift && decision.Verdict != core.VerdictUpshift && decision.Verdict != core.VerdictOK {
+	if !decision.ShouldApplyEffort() {
 		return allow(), ""
 	}
 
