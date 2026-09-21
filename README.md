@@ -587,6 +587,31 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
 
 ---
 
+## A note from the author
+
+This project started from a real pain I live every day as a developer running
+multiple AI coding harnesses.
+
+Every session I watch subagents inherit the main model — Opus doing a `git
+status`, frontier models grepping directories, expensive tokens burning on
+work that any cheap model handles identically. I wanted to fix that. The fix
+was obvious in theory: route each subagent to the right model for its task.
+The hard part was that harnesses don't expose a clean API for this, and
+nobody had built a cross-harness solution that actually worked.
+
+This is one of the most challenging projects I've built in my career —
+not because the code is complex, but because it requires understanding
+harness internals that most developers never touch. It sits below the
+harness layer, at the exact point where a subagent's model gets decided,
+and it works deterministically without adding tokens or latency to the loop.
+
+The name says it all: downshift when the road is straight, upshift for the
+curves. It's the gearbox the harnesses ship without.
+
+— [Tiago de Carvalho Vilas Boas](https://github.com/tiagovilasboas)
+
+---
+
 ## References & inspiration
 
 - **Martin Fowler — [Harness engineering for coding agent users](https://martinfowler.com/articles/harness-engineering.html).**
