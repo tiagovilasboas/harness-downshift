@@ -20,13 +20,16 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 
 	"github.com/tiagovilasboas/harness-downshift/internal/adapters/claudecode"
 	"github.com/tiagovilasboas/harness-downshift/internal/adapters/codex"
 	"github.com/tiagovilasboas/harness-downshift/internal/adapters/cursor"
+	"github.com/tiagovilasboas/harness-downshift/internal/benchmark"
 	"github.com/tiagovilasboas/harness-downshift/internal/catalog"
 	"github.com/tiagovilasboas/harness-downshift/internal/core"
 	"github.com/tiagovilasboas/harness-downshift/internal/models"
+	"github.com/tiagovilasboas/harness-downshift/internal/telemetry"
 )
 
 func main() {
@@ -46,27 +49,31 @@ func main() {
 		os.Exit(runHookAdapter(
 			os.Stdin,
 			func(b []byte) (claudecode.Event, error) { var e claudecode.Event; return e, json.Unmarshal(b, &e) },
-			func(e claudecode.Event) (any, string) { return claudecode.Handle(e, cat) },
+			func(e claudecode.Event) (any, string, core.Decision) { return claudecode.Handle(e, cat) },
 			printAllow,
 		))
 	case "cursor":
 		os.Exit(runHookAdapter(
 			os.Stdin,
 			func(b []byte) (cursor.Event, error) { var e cursor.Event; return e, json.Unmarshal(b, &e) },
-			func(e cursor.Event) (any, string) { return cursor.Handle(e, cat) },
+			func(e cursor.Event) (any, string, core.Decision) { return cursor.Handle(e, cat) },
 			printCursorAllow,
 		))
 	case "codex":
 		os.Exit(runHookAdapter(
 			os.Stdin,
 			func(b []byte) (codex.Event, error) { var e codex.Event; return e, json.Unmarshal(b, &e) },
-			func(e codex.Event) (any, string) { return codex.Handle(e, cat) },
+			func(e codex.Event) (any, string, core.Decision) { return codex.Handle(e, cat) },
 			printCodexAllow,
 		))
 	case "try":
 		os.Exit(runTry(cat, args[1:]))
 	case "models":
 		os.Exit(runModels(cat, args[1:]))
+	case "stats":
+		os.Exit(runStats(args[1:]))
+	case "benchmark":
+		os.Exit(runBenchmark(args[1:]))
 	case "-h", "--help", "help":
 		usage()
 		os.Exit(0)
@@ -78,17 +85,14 @@ func main() {
 }
 
 // runHookAdapter is the single hook-runner template shared by all harness
-// adapters. It reads a JSON event from in, calls handle, and encodes the
-// result to stdout. Any failure prints the harness-specific fail-open
-// response and exits 0 — the spawn must never be blocked by a router error.
-//
-// Type parameter E is the harness-specific event struct.
-// in is the event source; production callers pass os.Stdin, tests pass a
-// bytes.Reader so the function can be instrumented by go test -cover.
+// adapters. It reads a JSON event from in, calls handle, encodes the result
+// to stdout, and records telemetry for any decision with a non-empty harness.
+// Any failure prints the harness-specific fail-open response and exits 0 —
+// the spawn must never be blocked by a router error.
 func runHookAdapter[E any](
 	in io.Reader,
 	parse func([]byte) (E, error),
-	handle func(E) (any, string),
+	handle func(E) (any, string, core.Decision),
 	failOpen func(),
 ) int {
 	data, err := io.ReadAll(in)
@@ -101,13 +105,18 @@ func runHookAdapter[E any](
 		failOpen()
 		return 0
 	}
-	out, note := handle(ev)
+	out, note, decision := handle(ev)
 	if err := json.NewEncoder(os.Stdout).Encode(out); err != nil {
 		failOpen()
 		return 0
 	}
 	if note != "" {
 		fmt.Fprintln(os.Stderr, "downshift: "+note)
+	}
+	// Record telemetry only when a real routing decision was made.
+	// A zero Decision (Harness == "") means the event was not a subagent spawn.
+	if decision.Harness != "" {
+		telemetry.Record(telemetry.FromDecision(decision))
 	}
 	return 0
 }
@@ -176,6 +185,57 @@ func runModels(cat models.CatalogReader, args []string) int {
 	}
 }
 
+// runStats reads the local event log and prints a savings summary.
+// Usage: downshift stats [--days=N]  (default: last 30 days; 0 = all time)
+func runStats(args []string) int {
+	days := 30
+	for _, arg := range args {
+		if len(arg) > 7 && arg[:7] == "--days=" {
+			n, err := strconv.Atoi(arg[7:])
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "invalid --days value: %s\n", arg[7:])
+				return 2
+			}
+			days = n
+		}
+	}
+
+	events, err := telemetry.ReadEvents()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error reading event log: %v\n", err)
+		return 1
+	}
+	if len(events) == 0 {
+		fmt.Fprintln(os.Stderr, "no events recorded yet — run some subagent tasks first.")
+		return 0
+	}
+	telemetry.PrintStats(events, days, os.Stdout)
+	return 0
+}
+
+// runBenchmark runs the classifier against a labelled task dataset and prints
+// a confusion matrix + false-downshift rate.
+// Usage: downshift benchmark <dataset.json>
+func runBenchmark(args []string) int {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "usage: downshift benchmark <dataset.json>")
+		fmt.Fprintln(os.Stderr, "")
+		fmt.Fprintln(os.Stderr, "The dataset is a JSON array of {\"prompt\":\"...\",\"label\":\"TRIVIAL|SIMPLE|MEDIUM|COMPLEX\"} objects.")
+		fmt.Fprintln(os.Stderr, "A seed dataset is available at benchmark/tasks.json in the repository.")
+		return 2
+	}
+	path := args[0]
+	tasks, err := benchmark.LoadDataset(path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error loading dataset: %v\n", err)
+		return 1
+	}
+	results := benchmark.Run(tasks, os.Stderr)
+	matrix := benchmark.Build(results)
+	benchmark.Print(results, matrix, os.Stdout)
+	return 0
+}
+
 // --- Harness-specific fail-open responses ---
 // Each harness has a different envelope for "allow unchanged". These are the
 // minimal valid JSON outputs that let the tool call proceed unmodified.
@@ -203,6 +263,8 @@ Usage:
   downshift models list          Show the effective catalog (embedded or override)
   downshift models check         Query provider APIs and report new/untiered models
   downshift models pull          Write ~/.harness-downshift/catalog.json from APIs
+  downshift stats [--days=N]     Show routing decisions and estimated savings (default: 30 days)
+  downshift benchmark <file>     Run classifier against a labelled dataset; print confusion matrix
 
 Grok note:
   Grok routes subagent models via config, not a hook (its PreToolUse is
@@ -214,5 +276,8 @@ Examples:
   downshift try "rearchitect the payment flow" cursor claude-haiku-4
   downshift try "add a subagent to scan for secrets" codex gpt-5.6-sol
   downshift try "explore the auth module" grok
+  downshift stats
+  downshift stats --days=7
+  downshift benchmark benchmark/tasks.json
 `)
 }

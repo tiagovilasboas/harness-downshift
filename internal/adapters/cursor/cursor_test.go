@@ -41,7 +41,7 @@ func TestHandle_DownshiftsTrivialSubagent(t *testing.T) {
 			"model": "` + frontierID + `"
 		}`),
 	}
-	out, note := cursor.Handle(ev, cat)
+	out, note, _ := cursor.Handle(ev, cat)
 	if note == "" {
 		t.Fatal("expected a downshift note, got none")
 	}
@@ -68,7 +68,7 @@ func TestHandle_UpshiftsComplexSubagent(t *testing.T) {
 			"model": "` + smallID + `"
 		}`),
 	}
-	out, note := cursor.Handle(ev, cat)
+	out, note, _ := cursor.Handle(ev, cat)
 	if note == "" {
 		t.Fatal("expected an upshift note, got none")
 	}
@@ -89,7 +89,7 @@ func TestHandle_OKKeepsGear(t *testing.T) {
 			"model": "` + midID + `"
 		}`),
 	}
-	out, note := cursor.Handle(ev, cat)
+	out, note, _ := cursor.Handle(ev, cat)
 	if note != "" {
 		t.Errorf("expected no change, got %q", note)
 	}
@@ -104,7 +104,7 @@ func TestHandle_IgnoresNonTaskTools(t *testing.T) {
 		ModelID:   catID(core.TierFrontier),
 		ToolInput: json.RawMessage(`{"command":"ls"}`),
 	}
-	_, note := cursor.Handle(ev, cat)
+	_, note, _ := cursor.Handle(ev, cat)
 	if note != "" {
 		t.Errorf("expected no note for non-Task tool, got %q", note)
 	}
@@ -120,7 +120,7 @@ func TestHandle_FallsBackToPromptField(t *testing.T) {
 			"model": "` + frontierID + `"
 		}`),
 	}
-	out, note := cursor.Handle(ev, cat)
+	out, note, _ := cursor.Handle(ev, cat)
 	if note == "" {
 		t.Fatal("expected downshift using prompt field")
 	}
@@ -138,7 +138,7 @@ func TestHandle_FallsBackToEventModel(t *testing.T) {
 		ModelID:  frontierID,
 		ToolInput: json.RawMessage(`{"task": "rename the variable"}`),
 	}
-	out, note := cursor.Handle(ev, cat)
+	out, note, _ := cursor.Handle(ev, cat)
 	if note == "" {
 		t.Fatal("expected downshift using event model_id as current")
 	}
@@ -163,7 +163,7 @@ func TestHandle_SiblingFieldsPreserved(t *testing.T) {
 			"run_in_background": true
 		}`),
 	}
-	out, _ := cursor.Handle(ev, cat)
+	out, _, _ := cursor.Handle(ev, cat)
 	m := decodeUpdated(t, out)
 	if m == nil {
 		t.Fatal("expected updated_input")

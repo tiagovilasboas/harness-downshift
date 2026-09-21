@@ -37,14 +37,16 @@ type Output struct {
 
 // Handle processes a preToolUse event using the catalog.Resolver injected by
 // main. Falls back to the legacy core.Catalog when r is nil (tests).
-func Handle(ev Event, r ...core.Resolver) (Output, string) {
+// Returns the hook output, a human-readable note, and the full routing Decision
+// so callers can record telemetry without re-classifying the prompt.
+func Handle(ev Event, r ...core.Resolver) (Output, string, core.Decision) {
 	if !isTaskTool(ev.ToolName) {
-		return allow(), ""
+		return allow(), "", core.Decision{}
 	}
 
 	var ti map[string]any
 	if err := json.Unmarshal(ev.ToolInput, &ti); err != nil {
-		return allow(), ""
+		return allow(), "", core.Decision{}
 	}
 
 	subPrompt := hookutil.StringField(ti, "task")
@@ -55,7 +57,7 @@ func Handle(ev Event, r ...core.Resolver) (Output, string) {
 		subPrompt = hookutil.StringField(ti, "description")
 	}
 	if subPrompt == "" {
-		return allow(), ""
+		return allow(), "", core.Decision{}
 	}
 
 	currentModel := hookutil.StringField(ti, "model")
@@ -74,20 +76,20 @@ func Handle(ev Event, r ...core.Resolver) (Output, string) {
 
 	plan := decision.Plan(core.CursorCaps, res)
 	if plan.PreserveExplicit || !plan.RewriteModel {
-		return allow(), ""
+		return allow(), "", decision
 	}
 
 	ti["model"] = plan.Model.ID
 	updated, err := json.Marshal(ti)
 	if err != nil {
-		return allow(), ""
+		return allow(), "", decision
 	}
 
 	return Output{
 		Permission:   "allow",
 		UpdatedInput: updated,
 		AgentMessage: "downshift: " + decision.Summary(),
-	}, decision.Summary()
+	}, decision.Summary(), decision
 }
 
 func isTaskTool(name string) bool {

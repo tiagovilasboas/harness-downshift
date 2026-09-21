@@ -43,7 +43,7 @@ func TestHandle_DownshiftsTrivialSubagent(t *testing.T) {
 			"model": "` + frontierID + `"
 		}`),
 	}
-	out, note := claudecode.Handle(ev, cat)
+	out, note, _ := claudecode.Handle(ev, cat)
 	if note == "" {
 		t.Fatal("expected a downshift note, got none")
 	}
@@ -73,7 +73,7 @@ func TestHandle_UpshiftsComplexSubagent(t *testing.T) {
 			"model": "` + smallID + `"
 		}`),
 	}
-	out, note := claudecode.Handle(ev, cat)
+	out, note, _ := claudecode.Handle(ev, cat)
 	if note == "" {
 		t.Fatal("expected an upshift note, got none")
 	}
@@ -94,7 +94,7 @@ func TestHandle_NoChangeWhenAlreadyRightGear(t *testing.T) {
 			"model": "` + midID + `"
 		}`),
 	}
-	out, note := claudecode.Handle(ev, cat)
+	out, note, _ := claudecode.Handle(ev, cat)
 	if note != "" {
 		t.Errorf("expected no change note, got %q", note)
 	}
@@ -109,7 +109,7 @@ func TestHandle_IgnoresNonTaskTools(t *testing.T) {
 		Model:     catID(core.TierFrontier),
 		ToolInput: json.RawMessage(`{"command": "rm -rf /tmp/x"}`),
 	}
-	out, note := claudecode.Handle(ev, cat)
+	out, note, _ := claudecode.Handle(ev, cat)
 	if note != "" {
 		t.Errorf("expected no note for non-Task tool, got %q", note)
 	}
@@ -125,7 +125,7 @@ func TestHandle_FallsBackToSessionModel(t *testing.T) {
 		Model:    frontierID, // session model, no model on tool input
 		ToolInput: json.RawMessage(`{"prompt": "fix a typo in the readme"}`),
 	}
-	out, note := claudecode.Handle(ev, cat)
+	out, note, _ := claudecode.Handle(ev, cat)
 	if note == "" {
 		t.Fatal("expected downshift using session model as current")
 	}
@@ -143,7 +143,7 @@ func TestHandle_AgentToolAlias(t *testing.T) {
 		Model:    frontierID,
 		ToolInput: json.RawMessage(`{"prompt": "rename the variable", "model": "` + frontierID + `"}`),
 	}
-	_, note := claudecode.Handle(ev, cat)
+	_, note, _ := claudecode.Handle(ev, cat)
 	if note == "" {
 		t.Error("expected Agent tool to be treated as a subagent spawn")
 	}
@@ -155,7 +155,7 @@ func TestHandle_MalformedInputFailsOpen(t *testing.T) {
 		Model:     catID(core.TierFrontier),
 		ToolInput: json.RawMessage(`{not valid`),
 	}
-	out, note := claudecode.Handle(ev, cat)
+	out, note, _ := claudecode.Handle(ev, cat)
 	if note != "" {
 		t.Errorf("malformed input must fail-open, got note %q", note)
 	}
@@ -183,7 +183,7 @@ func TestHandle_SiblingFieldsPreserved(t *testing.T) {
 			"run_in_background":  false
 		}`),
 	}
-	out, _ := claudecode.Handle(ev, cat)
+	out, _, _ := claudecode.Handle(ev, cat)
 	m := decodeUpdated(t, out)
 	if m == nil {
 		t.Fatal("expected updatedInput")

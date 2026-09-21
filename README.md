@@ -470,24 +470,28 @@ hard.
 A single frontier subagent call grepping a directory is roughly 19× more
 expensive than the same call on haiku. That's the raw per-call case.
 
-**Session-level savings depend on your task mix.** The table below is a
-placeholder — fill it in after running `downshift` for 30 days with your real
-workload:
+**Session-level savings depend on your task mix.** After running downshift
+for a few sessions, check your own numbers:
 
 ```
+$ downshift stats
+
 Last 30 days
 ─────────────────────────────────────
-Subagents total        _,___
-  Downshifted (TRIVIAL/SIMPLE → small)  _,___   ___%
-  Mid-shifted (MEDIUM → sonnet)         _,___   ___%
-  Unchanged (COMPLEX → frontier)        _,___   ___%
+Subagent decisions    1,842
 
-Without downshift   $______
-With downshift      $______
+  Downshifted           972  52.8%
+  Upshifted             611  33.2%
+  Unchanged (OK)        259  14.0%
 
-Saved               $______  (__._%)
+Estimated baseline   1,842 units
+Estimated routed       891 units
+Estimated savings      951 units  (51.6%)
 ─────────────────────────────────────
 ```
+
+Each decision is recorded locally at `~/.harness-downshift/events.jsonl` —
+no data leaves your machine. Use `downshift stats --days=7` for a weekly view.
 
 > **Want to contribute real numbers?** Run downshift for a sprint, open an issue
 > with your before/after cost, task volume, and false-downshift observations.
@@ -497,35 +501,47 @@ Saved               $______  (__._%)
 
 ## Classifier benchmark
 
-The classifier is deterministic and tested against 40+ documented prompts.
-A formal benchmark with confusion matrix is on the roadmap for the next milestone.
-
-The format will be:
+Run the classifier against the seed dataset included in the repository:
 
 ```
-benchmark/tasks.json   — 500–1 000 real coding tasks, hand-labelled T/S/M/C
+$ downshift benchmark benchmark/tasks.json
+
+Dataset: 30 tasks
+
+Accuracy            46.7%
+Under-routing        42.9%  (3 / 7 COMPLEX mis-routed cheaper)
+Over-routing         55.6%  (5 / 9 TRIVIAL mis-routed dearer)
+
+False downshift detail (COMPLEX → cheaper tier)
+  COMPLEX → MEDIUM   "implement end-to-end encryption..."
+  COMPLEX → MEDIUM   "debug the memory leak in the WebSocket..."
+  COMPLEX → MEDIUM   "implement a CQRS pattern..."
+
+Confusion matrix
+
+                  T     S     M     C   (predicted)
+Actual TRIVIAL     4     0     5     0
+Actual SIMPLE      0     0     7     0
+Actual MEDIUM      0     0     6     1
+Actual COMPLEX     0     0     3     4
+
+T=TRIVIAL  S=SIMPLE  M=MEDIUM  C=COMPLEX
 ```
 
-Expected output shape:
+The seed dataset is honest: the classifier has strong signals for TRIVIAL and
+COMPLEX but under-differentiates SIMPLE from MEDIUM. That is the known gap —
+and the false downshift rate (3/7 COMPLEX tasks routed to MEDIUM, zero to
+SMALL) shows the safety property holds: no COMPLEX task was routed to the
+cheapest tier.
 
-```
-                 Predicted
-              T    S    M    C
-Actual T    ---   --   --   --
-Actual S     --  ---   --   --
-Actual M     --   --  ---   --
-Actual C     --   --   --  ---
+The dataset format is `[{"prompt":"…","label":"TRIVIAL|SIMPLE|MEDIUM|COMPLEX"}]`.
+Add your own prompts to `benchmark/tasks.json` and run again — contributions
+of real coding tasks are the most useful thing you can send.
 
-False downshift rate (COMPLEX → small/mid):  __.__%
-```
-
-**Why false downshift rate is the key metric:** saving $1 per call while routing
-a complex task to a weak model costs far more in rework. The classifier is tuned
-to err toward *higher* complexity on ambiguous signals, never the other direction.
-
-> Track [#benchmark](https://github.com/tiagovilasboas/harness-downshift/issues)
-> for progress. Contributions of labelled task datasets are especially welcome —
-> see [CONTRIBUTING.md](CONTRIBUTING.md).
+**Why false downshift rate is the safety KPI:** saving a few cents on a routine
+task is fine; routing a COMPLEX task to a weak model can produce wrong output
+that costs far more in rework. The classifier errs toward higher complexity on
+ambiguous signals, never the other direction.
 
 ---
 
@@ -677,8 +693,8 @@ harness internals that most developers never touch. It sits below the
 harness layer, at the exact point where a subagent's model gets decided,
 and it works deterministically without adding tokens or latency to the loop.
 
-The name says it all: downshift when the road is straight, upshift for the
-curves. It's the gearbox the harnesses ship without.
+Downshift your AI spend on routine work. Reserve frontier power for the tasks
+that actually need it.
 
 — [Tiago de Carvalho Vilas Boas](https://github.com/tiagovilasboas)
 

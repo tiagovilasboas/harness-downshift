@@ -42,7 +42,7 @@ func TestHandle_DownshiftsTrivialSubagent(t *testing.T) {
 			"fork_turns": "none"
 		}`),
 	}
-	out, note := codex.Handle(ev, cat)
+	out, note, _ := codex.Handle(ev, cat)
 	if note == "" {
 		t.Fatal("expected a downshift note, got none")
 	}
@@ -73,7 +73,7 @@ func TestHandle_UpshiftsComplexSubagent(t *testing.T) {
 			"message": "rearchitect the payment flow across multiple services and migrate the schema"
 		}`),
 	}
-	out, note := codex.Handle(ev, cat)
+	out, note, _ := codex.Handle(ev, cat)
 	if note == "" {
 		t.Fatal("expected an upshift note, got none")
 	}
@@ -94,7 +94,7 @@ func TestHandle_OKRewritesReasoningEffort(t *testing.T) {
 			"model": "` + midID + `"
 		}`),
 	}
-	out, note := codex.Handle(ev, cat)
+	out, note, _ := codex.Handle(ev, cat)
 	if note == "" {
 		t.Error("expected an effort-routing note")
 	}
@@ -113,7 +113,7 @@ func TestHandle_IgnoresNonSpawnTools(t *testing.T) {
 		Model:     catID(core.TierFrontier),
 		ToolInput: json.RawMessage(`{"command":"ls"}`),
 	}
-	_, note := codex.Handle(ev, cat)
+	_, note, _ := codex.Handle(ev, cat)
 	if note != "" {
 		t.Errorf("expected no note for non-spawn tool, got %q", note)
 	}
@@ -126,7 +126,7 @@ func TestHandle_MatchesFlattenedNamespacedToolName(t *testing.T) {
 		Model:     frontierID,
 		ToolInput: json.RawMessage(`{"message": "fix a typo in the readme"}`),
 	}
-	out, note := codex.Handle(ev, cat)
+	out, note, _ := codex.Handle(ev, cat)
 	if note == "" {
 		t.Fatal("expected downshift for flattened namespaced tool name")
 	}
@@ -144,7 +144,7 @@ func TestHandle_MatchesAgentToolName(t *testing.T) {
 		Model:     frontierID,
 		ToolInput: json.RawMessage(`{"message": "rename a private helper method"}`),
 	}
-	_, note := codex.Handle(ev, cat)
+	_, note, _ := codex.Handle(ev, cat)
 	if note == "" {
 		t.Fatal("expected downshift for Agent tool name")
 	}
@@ -160,7 +160,7 @@ func TestHandle_TaskNameAddsSignal(t *testing.T) {
 			"message": "typo fix"
 		}`),
 	}
-	out, note := codex.Handle(ev, cat)
+	out, note, _ := codex.Handle(ev, cat)
 	if note == "" {
 		t.Fatal("expected a routing decision")
 	}
@@ -177,7 +177,7 @@ func TestHandle_FallsBackToEventModel(t *testing.T) {
 		Model:     frontierID,
 		ToolInput: json.RawMessage(`{"message": "rename the variable"}`),
 	}
-	out, note := codex.Handle(ev, cat)
+	out, note, _ := codex.Handle(ev, cat)
 	if note == "" {
 		t.Fatal("expected downshift using event model as current")
 	}
@@ -190,7 +190,7 @@ func TestHandle_FallsBackToEventModel(t *testing.T) {
 
 func TestHandle_UnknownCurrentModelStillRoutes(t *testing.T) {
 	ev := codex.Event{ToolName: "spawn_agent", ToolInput: json.RawMessage(`{"message":"do a code review"}`)}
-	out, note := codex.Handle(ev, cat)
+	out, note, _ := codex.Handle(ev, cat)
 	if note == "" {
 		t.Fatal("expected a routing note")
 	}
@@ -206,7 +206,7 @@ func TestHandle_MalformedInputFailsOpen(t *testing.T) {
 		Model:     catID(core.TierFrontier),
 		ToolInput: json.RawMessage(`{not valid json`),
 	}
-	out, note := codex.Handle(ev, cat)
+	out, note, _ := codex.Handle(ev, cat)
 	if note != "" {
 		t.Errorf("expected fail-open (no note), got %q", note)
 	}
@@ -221,7 +221,7 @@ func TestHandle_UsesSupportedCodexPreToolUseEnvelope(t *testing.T) {
 		Model:     catID(core.TierFrontier),
 		ToolInput: json.RawMessage(`{"message": "rename the variable"}`),
 	}
-	out, _ := codex.Handle(ev, cat)
+	out, _, _ := codex.Handle(ev, cat)
 	raw, err := json.Marshal(out)
 	if err != nil {
 		t.Fatalf("marshal output: %v", err)
@@ -241,7 +241,7 @@ func TestHandle_EmptyMessageFailsOpen(t *testing.T) {
 		Model:     catID(core.TierFrontier),
 		ToolInput: json.RawMessage(`{"fork_turns":"none"}`),
 	}
-	out, note := codex.Handle(ev, cat)
+	out, note, _ := codex.Handle(ev, cat)
 	if note != "" {
 		t.Errorf("expected no decision for empty message, got %q", note)
 	}
@@ -267,7 +267,7 @@ func TestHandle_SiblingFieldsPreserved(t *testing.T) {
 			"background":       false
 		}`),
 	}
-	out, _ := codex.Handle(ev, cat)
+	out, _, _ := codex.Handle(ev, cat)
 	m := decodeUpdated(t, out)
 	if m == nil {
 		t.Fatal("expected updatedInput")

@@ -48,14 +48,16 @@ type HookSpecificOutput struct {
 // Handle processes a PreToolUse event. Accepts an optional catalog.Resolver
 // for model lookup and effort translation. Falls back to legacy core.Catalog
 // when nil (tests that don't inject a resolver).
-func Handle(ev Event, r ...core.Resolver) (Output, string) {
+// Returns the hook output, a human-readable note, and the full routing Decision
+// so callers can record telemetry without re-classifying the prompt.
+func Handle(ev Event, r ...core.Resolver) (Output, string, core.Decision) {
 	if !isSpawnTool(ev.ToolName) {
-		return allow(), ""
+		return allow(), "", core.Decision{}
 	}
 
 	var ti map[string]any
 	if err := json.Unmarshal(ev.ToolInput, &ti); err != nil {
-		return allow(), ""
+		return allow(), "", core.Decision{}
 	}
 
 	subPrompt := hookutil.StringField(ti, "message")
@@ -63,7 +65,7 @@ func Handle(ev Event, r ...core.Resolver) (Output, string) {
 		subPrompt = strings.TrimSpace(subPrompt + " " + tn)
 	}
 	if subPrompt == "" {
-		return allow(), ""
+		return allow(), "", core.Decision{}
 	}
 
 	currentModel := hookutil.StringField(ti, "model")
@@ -77,16 +79,11 @@ func Handle(ev Event, r ...core.Resolver) (Output, string) {
 	}
 	decision := core.Route(subPrompt, harnessID, currentModel, res)
 
-	// Codex routes both the model tier and reasoning effort. Even when the
-	// selected model already matches, rewrite the spawn so the child receives
-	// the effort associated with this task (for example, terra/medium rather
-	// than inheriting terra/low from its parent).
 	plan := decision.Plan(core.CodexCaps, res)
 	if plan.PreserveExplicit || !plan.ApplyEffort {
-		return allow(), ""
+		return allow(), "", decision
 	}
 
-	// Translate effort via the Resolver — no type assertion needed.
 	effortValue := decision.Effort.String()
 	if res != nil {
 		effortValue = res.EffortFor(harnessID, plan.Model.ID, decision.Effort)
@@ -97,7 +94,7 @@ func Handle(ev Event, r ...core.Resolver) (Output, string) {
 	ti["reasoning_effort"] = effortValue
 	updated, err := json.Marshal(ti)
 	if err != nil {
-		return allow(), ""
+		return allow(), "", decision
 	}
 
 	out := Output{
@@ -107,7 +104,7 @@ func Handle(ev Event, r ...core.Resolver) (Output, string) {
 			UpdatedInput:       updated,
 		},
 	}
-	return out, decision.Summary()
+	return out, decision.Summary(), decision
 }
 
 func isSpawnTool(name string) bool {

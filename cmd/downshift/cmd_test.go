@@ -196,7 +196,7 @@ func TestRunHookAdapter_ClaudeCode_Downshift(t *testing.T) {
 		rc := runHookAdapter(
 			bytes.NewReader(event),
 			func(b []byte) (claudecode.Event, error) { var e claudecode.Event; return e, json.Unmarshal(b, &e) },
-			func(e claudecode.Event) (any, string) { return claudecode.Handle(e, cmdCat) },
+			func(e claudecode.Event) (any, string, core.Decision) { return claudecode.Handle(e, cmdCat) },
 			printAllow,
 		)
 		if rc != 0 {
@@ -220,7 +220,7 @@ func TestRunHookAdapter_Cursor_Downshift(t *testing.T) {
 		runHookAdapter(
 			bytes.NewReader(event),
 			func(b []byte) (cursor.Event, error) { var e cursor.Event; return e, json.Unmarshal(b, &e) },
-			func(e cursor.Event) (any, string) { return cursor.Handle(e, cmdCat) },
+			func(e cursor.Event) (any, string, core.Decision) { return cursor.Handle(e, cmdCat) },
 			printCursorAllow,
 		)
 	})
@@ -238,7 +238,7 @@ func TestRunHookAdapter_Codex_Downshift(t *testing.T) {
 		runHookAdapter(
 			bytes.NewReader(event),
 			func(b []byte) (codex.Event, error) { var e codex.Event; return e, json.Unmarshal(b, &e) },
-			func(e codex.Event) (any, string) { return codex.Handle(e, cmdCat) },
+			func(e codex.Event) (any, string, core.Decision) { return codex.Handle(e, cmdCat) },
 			printCodexAllow,
 		)
 	})
@@ -258,7 +258,7 @@ func TestRunHookAdapter_MalformedJSON_FailOpen(t *testing.T) {
 		rc := runHookAdapter(
 			bytes.NewReader([]byte(`{not valid json`)),
 			func(b []byte) (claudecode.Event, error) { var e claudecode.Event; return e, json.Unmarshal(b, &e) },
-			func(e claudecode.Event) (any, string) { return claudecode.Handle(e, cmdCat) },
+			func(e claudecode.Event) (any, string, core.Decision) { return claudecode.Handle(e, cmdCat) },
 			printAllow,
 		)
 		if rc != 0 {
