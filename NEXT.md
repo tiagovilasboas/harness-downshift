@@ -58,18 +58,18 @@ All three hook adapters:
 - `SPDX-License-Identifier: BUSL-1.1` on every Go source file.
 - `models list/check/pull` — live catalog discovery from provider APIs.
 
-### Test coverage
+### Test coverage (current)
 
 | Package | Coverage |
 |---|---|
-| `internal/adapters/claudecode` | ~91% |
-| `internal/adapters/codex` | ~95% |
-| `internal/adapters/cursor` | ~84% |
-| `internal/catalog` | ~85% |
-| `internal/core` | ~82% |
 | `internal/hookutil` | 100% |
-| `internal/models` | ~94% |
-| `cmd/downshift` | ~70% |
+| `internal/core` | 96% |
+| `internal/adapters/codex` | 93% |
+| `internal/catalog` | 94% |
+| `internal/adapters/claudecode` | 91% |
+| `internal/models` | 89% |
+| `internal/adapters/cursor` | 85% |
+| `cmd/downshift` | 61% (teto prático — main/usage only reachable via subprocess) |
 
 ---
 
