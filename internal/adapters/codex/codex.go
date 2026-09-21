@@ -81,26 +81,18 @@ func Handle(ev Event, r ...core.Resolver) (Output, string) {
 	// selected model already matches, rewrite the spawn so the child receives
 	// the effort associated with this task (for example, terra/medium rather
 	// than inheriting terra/low from its parent).
-	plan := decision.Plan(core.HarnessCapabilities{CanRewriteModel: true, CanApplyEffort: true})
-	if !plan.ApplyEffort {
+	plan := decision.Plan(core.CodexCaps, res)
+	if plan.PreserveExplicit || !plan.ApplyEffort {
 		return allow(), ""
 	}
 
 	// Translate effort via the Resolver — no type assertion needed.
-	// EffortFor reads the catalog's effort_map for this model and harness.
-	// Falls back to effort.String() ("low"/"medium"/"high") when absent.
 	effortValue := decision.Effort.String()
 	if res != nil {
-		effortValue = res.EffortFor(harnessID, decision.Model.ID, decision.Effort)
+		effortValue = res.EffortFor(harnessID, plan.Model.ID, decision.Effort)
 	}
 
 	targetModel := plan.Model.ID
-	// A user who explicitly selected a frontier model (for example Astra for an
-	// exceptional investigation) must not be silently moved to the default
-	// frontier model. Keep the current model when it already has the right tier.
-	if decision.Verdict == core.VerdictOK && decision.CurrentModel.ID != "" {
-		targetModel = decision.CurrentModel.ID
-	}
 	ti["model"] = targetModel
 	ti["reasoning_effort"] = effortValue
 	updated, err := json.Marshal(ti)

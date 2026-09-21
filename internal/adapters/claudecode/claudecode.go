@@ -72,8 +72,8 @@ func Handle(ev Event, r ...core.Resolver) (Output, string) {
 	}
 	decision := core.Route(subPrompt, harnessID, currentModel, res)
 
-	plan := decision.Plan(core.HarnessCapabilities{CanRewriteModel: true})
-	if !plan.RewriteModel {
+	plan := decision.Plan(core.ClaudeCodeCaps, res)
+	if plan.PreserveExplicit || !plan.RewriteModel {
 		return allow(), ""
 	}
 
