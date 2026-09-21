@@ -13,7 +13,8 @@ prices for work a cheap model does just as well.**
 the cheap model. Hard work gets the frontier model's torque. You stop burning
 budget on the straights and keep the power for the curves.
 
-Works with Claude Code, Cursor, and Codex today. Any harness with subagents next.
+Hook adapters for Claude Code, Cursor, and Codex today, plus a config recipe for
+Grok CLI. Any harness with controllable subagents next.
 
 **Keywords:** Claude Code subagent cost · LLM model routing · agent harness ·
 cost optimization · Claude Code hooks · Cursor subagents · Codex model selection
@@ -197,6 +198,56 @@ at low effort — cheap on both counts.
 > the reserved fields and fails open, but pin the exact Codex build you deploy
 > and keep an acceptance test on a real spawn.
 
+## Grok CLI (config, not hook)
+
+Grok CLI is the honest exception, and it's worth being precise about why.
+
+Grok has subagents (`spawn_subagent`, up to ~8 in parallel) and it reads
+Claude Code / Cursor hook files. But its `PreToolUse` hook contract is
+**allow-or-deny only** — `{ "decision": "deny", "reason": "…" }`. There is no
+documented `updatedInput`, so a hook **cannot rewrite a subagent's model** the
+way it can on Claude Code, Cursor, and Codex. A downshift hook on Grok could
+only *block* a spawn, which isn't the job.
+
+There's a second wrinkle: as of this writing Grok Build ships **one coding
+model** (`grok-4.6`, with *configurable reasoning*), not a small/mid/frontier
+model ladder. So on Grok the gearbox isn't "swap the model" — it's **dial the
+reasoning effort**. Cheap work runs `grok-4.6` at low effort; the hard curves
+run it at high effort. Same principle, different knob.
+
+Grok exposes both as **first-class config**, which is more robust than a runtime
+rewrite. Set reasoning per subagent role in `~/.grok/config.toml`:
+
+```toml
+# Built-in read-only types → low reasoning (cheap, fast).
+[subagents.personas.explore]
+reasoning_effort = "low"
+
+# Custom roles carry their own reasoning default.
+[subagents.roles.reviewer]
+description = "Reviews generated changes before commit"
+default_capability_mode = "read-only"
+reasoning_effort = "low"
+
+[subagents.roles.architect]
+description = "Cross-cutting design and migrations"
+reasoning_effort = "high"    # torque for the hard curves
+
+# If your catalog gains cheaper/stronger models, pin them per type too:
+# [subagents.models]
+# explore = "grok-4.6"
+```
+
+Precedence is explicit spawn override → role default → persona default → parent
+session, so these pins hold unless the agent is told otherwise.
+`downshift try "<prompt>" grok` tells you which tier a task wants; map that tier
+to a role's reasoning effort in config once.
+
+> If a future Grok build adds `updatedInput` to `PreToolUse` (or a multi-model
+> catalog), a `downshift grok` hook adapter becomes a drop-in — the classifier
+> and policy are already harness-agnostic. Until then, config is the right and
+> documented lever.
+
 ---
 
 ## Why a hook, and why only subagents
@@ -220,7 +271,7 @@ That's the one place model selection is genuinely controllable from the outside
 | **Claude Code** | ✅ Task tool | `PreToolUse` hook → `updatedInput.model` | ✅ shipped |
 | **Cursor** | ✅ Task tool | `preToolUse` hook → `updated_input.model` | ✅ shipped |
 | **Codex** | ✅ `spawn_agent` (multi_agent_v2) | `PreToolUse` hook → `updatedInput.model` + `reasoning_effort` | ✅ shipped |
-| Grok CLI | ✅ parallel subagents | hook format under review | 🔜 next |
+| **Grok CLI** | ✅ `spawn_subagent` | **config**, not hook — `[subagents.roles/models]` in `config.toml` | ⚙️ config-based (see below) |
 | Kiro (single-thread) | ❌ no subagents | — | not applicable |
 | Claude.ai / ChatGPT web | ❌ closed | — | not possible |
 
@@ -336,10 +387,11 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
 
 ## Status
 
-Early but real. The Claude Code, Cursor, and Codex adapters all work and are
-tested end-to-end. Grok CLI is next. The classifier will keep getting tuned
-against real subagent prompts — issues and PRs with prompts it gets wrong are
-the most useful contribution.
+Early but real. The Claude Code, Cursor, and Codex adapters all work as
+`PreToolUse` hooks and are tested end-to-end. Grok CLI is supported through
+config (its hook API is allow/deny only — see the Grok section for why). The
+classifier will keep getting tuned against real subagent prompts — issues and
+PRs with prompts it gets wrong are the most useful contribution.
 
 ## License
 

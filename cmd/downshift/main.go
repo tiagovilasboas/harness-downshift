@@ -146,6 +146,20 @@ func runTry(args []string) int {
 		current = args[2]
 	}
 
+	// Grok ships a single coding model with configurable reasoning, so the
+	// lever there is reasoning effort, not model tier. Report that instead of a
+	// misleading model id, and point at the config-based mechanism.
+	if harness == "grok" {
+		cls := core.Classify(prompt)
+		tier := cls.Complexity.Tier()
+		fmt.Printf("Task:       %s\n", prompt)
+		fmt.Printf("Complexity: %s\n", cls.Complexity)
+		fmt.Printf("Needs tier: %s\n", tier)
+		fmt.Printf("Reasoning:  %s  (grok-4.6, configurable reasoning)\n", grokEffortFor(tier))
+		fmt.Printf("→ set reasoning_effort=%q on the subagent role/persona in config.toml\n", grokEffortFor(tier))
+		return 0
+	}
+
 	d := core.Route(prompt, harness, current)
 	fmt.Printf("Task:       %s\n", prompt)
 	fmt.Printf("Complexity: %s\n", d.Complexity)
@@ -157,6 +171,19 @@ func runTry(args []string) int {
 	fmt.Printf("Verdict:    %s\n", d.Verdict)
 	fmt.Printf("→ %s\n", d.Summary())
 	return 0
+}
+
+// grokEffortFor maps a complexity tier to a Grok reasoning_effort level. Grok
+// accepts low, medium, and high. Cheaper tiers get lower effort.
+func grokEffortFor(tier core.Tier) string {
+	switch tier {
+	case core.TierSmall:
+		return "low"
+	case core.TierMid:
+		return "medium"
+	default:
+		return "high"
+	}
 }
 
 func printAllow() {
@@ -180,9 +207,15 @@ Usage:
   downshift codex                Run as a Codex PreToolUse hook (reads stdin)
   downshift try "<task>" [harness] [model]   Test classification from the terminal
 
+Grok note:
+  Grok routes subagent models via config, not a hook (its PreToolUse is
+  allow/deny only). Run  downshift try "<task>" grok  to see the reasoning
+  effort to pin on a subagent role in ~/.grok/config.toml. See the README.
+
 Examples:
   downshift try "rename the variable userId"
   downshift try "rearchitect the payment flow" cursor claude-haiku-4
   downshift try "add a subagent to scan for secrets" codex gpt-5.3-codex
+  downshift try "explore the auth module" grok
 `)
 }
