@@ -38,6 +38,10 @@ func List(cat CatalogReader, w io.Writer) {
 	fmt.Fprintln(w, "─────────────  ─────────  ─────────────────────  ───────  ────────  ────────────")
 
 	for _, e := range entries {
+		// Skip section comment entries (id or harness is empty).
+		if e.ID == "" || e.Harness == "" {
+			continue
+		}
 		fmt.Fprintf(w, "%-13s  %-9s  %-21s  %7.2f  %8.2f  %s\n",
 			e.Harness,
 			e.Tier,
