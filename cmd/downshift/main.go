@@ -26,6 +26,7 @@ import (
 	"github.com/tiagovilasboas/harness-downshift/internal/adapters/cursor"
 	"github.com/tiagovilasboas/harness-downshift/internal/catalog"
 	"github.com/tiagovilasboas/harness-downshift/internal/core"
+	"github.com/tiagovilasboas/harness-downshift/internal/models"
 )
 
 func main() {
@@ -61,6 +62,8 @@ func main() {
 		))
 	case "try":
 		os.Exit(runTry(cat, args[1:]))
+	case "models":
+		os.Exit(runModels(cat, args[1:]))
 	case "-h", "--help", "help":
 		usage()
 		os.Exit(0)
@@ -147,6 +150,26 @@ func runTry(cat core.Resolver, args []string) int {
 	return 0
 }
 
+// runModels dispatches the 'models' subcommands: list, check, pull.
+func runModels(cat *catalog.Catalog, args []string) int {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "usage: downshift models <list|check|pull>")
+		return 2
+	}
+	switch args[0] {
+	case "list":
+		models.List(cat, os.Stdout)
+		return 0
+	case "check":
+		return models.Check(cat, os.Stdout, os.Stderr)
+	case "pull":
+		return models.Pull(cat, os.Stdout, os.Stderr)
+	default:
+		fmt.Fprintf(os.Stderr, "unknown models subcommand %q\n", args[0])
+		return 2
+	}
+}
+
 // --- Harness-specific fail-open responses ---
 // Each harness has a different envelope for "allow unchanged". These are the
 // minimal valid JSON outputs that let the tool call proceed unmodified.
@@ -171,6 +194,9 @@ Usage:
   downshift cursor               Run as a Cursor preToolUse hook (reads stdin)
   downshift codex                Run as a Codex PreToolUse hook (reads stdin)
   downshift try "<task>" [harness] [model]   Test classification from the terminal
+  downshift models list          Show the effective catalog (embedded or override)
+  downshift models check         Query provider APIs and report new/untiered models
+  downshift models pull          Write ~/.harness-downshift/catalog.json from APIs
 
 Grok note:
   Grok routes subagent models via config, not a hook (its PreToolUse is
