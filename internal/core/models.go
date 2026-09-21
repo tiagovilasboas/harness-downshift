@@ -37,62 +37,14 @@ func (t Tier) String() string {
 }
 
 // Model is a concrete model offered by a harness, with its tier and rough cost.
+// Model IDs and costs live in the catalog package (internal/catalog/catalog.json),
+// not in Go source. This struct is the value type shared between core and catalog.
 type Model struct {
-	ID       string  // canonical model id used by the harness
-	Tier     Tier    // capability/cost bucket
-	InputM   float64 // USD per 1M input tokens (approximate)
-	OutputM  float64 // USD per 1M output tokens (approximate)
-	Harness  string  // which harness this model id belongs to
-}
-
-// Catalog maps each harness to its models per tier. These are the model ids
-// each harness actually accepts. Prices are approximate (Sep 2026) and only
-// used to show the user the savings — the routing decision is tier-based.
-var Catalog = map[string]map[Tier]Model{
-	"claude-code": {
-		TierSmall:    {ID: "claude-haiku-4", Tier: TierSmall, InputM: 0.80, OutputM: 4.00, Harness: "claude-code"},
-		TierMid:      {ID: "claude-sonnet-4-6", Tier: TierMid, InputM: 3.00, OutputM: 15.00, Harness: "claude-code"},
-		TierFrontier: {ID: "claude-opus-4-8", Tier: TierFrontier, InputM: 15.00, OutputM: 75.00, Harness: "claude-code"},
-	},
-	"cursor": {
-		TierSmall:    {ID: "claude-haiku-4", Tier: TierSmall, InputM: 0.80, OutputM: 4.00, Harness: "cursor"},
-		TierMid:      {ID: "claude-sonnet-4.6", Tier: TierMid, InputM: 3.00, OutputM: 15.00, Harness: "cursor"},
-		TierFrontier: {ID: "claude-opus-4.8", Tier: TierFrontier, InputM: 15.00, OutputM: 75.00, Harness: "cursor"},
-	},
-	// Codex model ids as accepted by the CLI / Responses API (Sep 2026).
-	// gpt-5.6-luna is the lowest cost/latency reasoning model; gpt-5.6-terra
-	// is the balanced tier; gpt-5.3-codex is the coding-tuned frontier model
-	// (supports low/medium/high/xhigh reasoning effort). See
-	// developers.openai.com/codex/models and .../api/docs/guides/reasoning.
-	"codex": {
-		TierSmall:    {ID: "gpt-5.6-luna", Tier: TierSmall, InputM: 0.15, OutputM: 0.60, Harness: "codex"},
-		TierMid:      {ID: "gpt-5.6-terra", Tier: TierMid, InputM: 1.25, OutputM: 5.00, Harness: "codex"},
-		TierFrontier: {ID: "gpt-5.3-codex", Tier: TierFrontier, InputM: 10.00, OutputM: 40.00, Harness: "codex"},
-	},
-}
-
-// ModelFor returns the model a harness should use for a given tier.
-// Falls back to the generic Claude tiers if the harness is unknown.
-func ModelFor(harness string, tier Tier) Model {
-	if models, ok := Catalog[harness]; ok {
-		if m, ok := models[tier]; ok {
-			return m
-		}
-	}
-	// Fallback: generic Claude naming.
-	return Catalog["claude-code"][tier]
-}
-
-// SavingsRatio returns how much cheaper `to` is versus `from`, as a fraction
-// (0.80 == 80% cheaper). Uses a blended input+output cost. Returns 0 when the
-// target is not cheaper.
-func SavingsRatio(from, to Model) float64 {
-	fromCost := from.InputM + from.OutputM
-	toCost := to.InputM + to.OutputM
-	if fromCost <= 0 || toCost >= fromCost {
-		return 0
-	}
-	return (fromCost - toCost) / fromCost
+	ID      string  // canonical model id used by the harness
+	Tier    Tier    // capability/cost bucket
+	InputM  float64 // USD per 1M input tokens (approximate)
+	OutputM float64 // USD per 1M output tokens (approximate)
+	Harness string  // which harness this model id belongs to
 }
 
 // Effort is the reasoning/compute intensity for a task. It is harness-agnostic:

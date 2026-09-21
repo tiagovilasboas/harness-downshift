@@ -30,6 +30,7 @@ func (c Complexity) Tier() Tier {
 type Decision struct {
 	Complexity   Complexity
 	Tier         Tier
+	Effort       Effort // recommended reasoning intensity for this tier
 	Harness      string
 	Model        Model // the model we recommend for this task
 	CurrentModel Model // the model currently in effect (may be zero if unknown)
@@ -66,17 +67,27 @@ func (v Verdict) String() string {
 	}
 }
 
-// Route is the main entry point: given a task prompt, a harness, and the
-// current model id (may be empty when unknown), produce a routing Decision.
-// It composes three focused steps: classify, resolve, compare.
-func Route(prompt, harness, currentModelID string) Decision {
+// Route is the main entry point: given a task prompt, a harness, the current
+// model id (may be empty), and an optional Resolver, produce a routing Decision.
+//
+// When r is nil, Route falls back to the in-package Catalog for backward
+// compatibility. Once all callers pass a real Resolver (Wave 4.4), the Catalog
+// var will be removed from core.
+func Route(prompt, harness, currentModelID string, r ...Resolver) Decision {
+	var res Resolver
+	if len(r) > 0 && r[0] != nil {
+		res = r[0]
+	}
+
 	tier, cls := classifyTask(prompt)
-	recommended := resolveModel(harness, tier)
-	verdict, savings, current := compareToCurrentModel(harness, currentModelID, recommended)
+	effort := EffortFor(tier)
+	recommended := resolveModel(harness, tier, res)
+	verdict, savings, current := compareToCurrentModel(harness, currentModelID, recommended, res)
 
 	return Decision{
 		Complexity:   cls,
 		Tier:         tier,
+		Effort:       effort,
 		Harness:      harness,
 		Model:        recommended,
 		CurrentModel: current,
@@ -93,14 +104,22 @@ func classifyTask(prompt string) (Tier, Complexity) {
 }
 
 // resolveModel returns the catalog model for the given harness and tier.
-func resolveModel(harness string, tier Tier) Model {
-	return ModelFor(harness, tier)
+// Uses the Resolver when provided; panics if nil (callers must inject one).
+func resolveModel(harness string, tier Tier, r Resolver) Model {
+	if r != nil {
+		return r.ModelFor(harness, tier)
+	}
+	// No resolver — return a zero Model with the tier set; caller handles gracefully.
+	return Model{Tier: tier, Harness: harness}
 }
 
-// compareToCurrentModel looks up the current model in the catalog and
-// determines whether to downshift, upshift, keep, or flag as unknown.
-func compareToCurrentModel(harness, currentModelID string, recommended Model) (Verdict, float64, Model) {
-	current, known := lookupCurrent(harness, currentModelID)
+// compareToCurrentModel looks up the current model and determines the verdict.
+func compareToCurrentModel(harness, currentModelID string, recommended Model, r Resolver) (Verdict, float64, Model) {
+	if r == nil || currentModelID == "" {
+		return VerdictUnknown, 0, Model{}
+	}
+
+	current, known := r.LookupByID(harness, currentModelID)
 	if !known {
 		return VerdictUnknown, 0, Model{}
 	}
@@ -109,28 +128,10 @@ func compareToCurrentModel(harness, currentModelID string, recommended Model) (V
 	case current.Tier == recommended.Tier:
 		return VerdictOK, 0, current
 	case current.Tier > recommended.Tier:
-		return VerdictDownshift, SavingsRatio(current, recommended), current
+		return VerdictDownshift, r.SavingsRatio(current, recommended), current
 	default:
 		return VerdictUpshift, 0, current
 	}
-}
-
-// lookupCurrent resolves a current model id to a catalog Model. Returns
-// known=false when the id is empty or not recognized in the harness catalog.
-func lookupCurrent(harness, modelID string) (Model, bool) {
-	if modelID == "" {
-		return Model{}, false
-	}
-	models, ok := Catalog[harness]
-	if !ok {
-		return Model{}, false
-	}
-	for _, m := range models {
-		if m.ID == modelID {
-			return m, true
-		}
-	}
-	return Model{}, false
 }
 
 // Summary renders a one-line, human-readable decision (the gearbox readout).
