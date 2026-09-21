@@ -112,11 +112,21 @@ Verdict:    DOWNSHIFT
 
 ## Install (Claude Code)
 
-Build the single binary (no runtime, no dependencies):
+Build or install the single binary (no runtime, no dependencies):
 
 ```bash
+# Recommended — one-liner installer (macOS / Linux, detects arch automatically)
+curl -fsSL https://raw.githubusercontent.com/tiagovilasboas/harness-downshift/main/install.sh | sh
+
+# Alternative — Go toolchain (any platform)
 go install github.com/tiagovilasboas/harness-downshift/cmd/downshift@latest
+
+# Specific beta version
+go install github.com/tiagovilasboas/harness-downshift/cmd/downshift@v0.1.0-beta.1
 ```
+
+Pre-built binaries for macOS (arm64/amd64), Linux (arm64/amd64), and Windows (amd64)
+are available on the [Releases](https://github.com/tiagovilasboas/harness-downshift/releases) page.
 
 Add the hook to `~/.claude/settings.json`:
 

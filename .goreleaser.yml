@@ -1,0 +1,109 @@
+# Copyright (c) 2026 Tiago de Carvalho Vilas Boas.
+# SPDX-License-Identifier: BUSL-1.1
+version: 2
+
+project_name: downshift
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+
+builds:
+  - id: downshift
+    main: ./cmd/downshift
+    binary: downshift
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    # Windows arm64 has limited user base — skip for now
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.ShortCommit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - id: default
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - README.md
+      - LICENSE
+      - catalog.sample.json
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+release:
+  github:
+    owner: tiagovilasboas
+    name: harness-downshift
+  # Pre-release flag is set automatically for tags containing -beta, -alpha, -rc
+  prerelease: auto
+  header: |
+    ## harness-downshift {{ .Tag }}
+
+    Harness-native subagent model router for Claude Code, Cursor, Codex, Grok, and OpenRouter.
+    Routes each subagent to the right-sized model by task complexity — no LLM in the routing loop.
+
+    **⚠️ Beta release** — functional and tested, but APIs and catalog format may still change before v1.0.
+
+  footer: |
+    ---
+    **Install** (macOS / Linux):
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/tiagovilasboas/harness-downshift/main/install.sh | sh
+    ```
+
+    **Install** (Go toolchain):
+    ```bash
+    go install github.com/tiagovilasboas/harness-downshift/cmd/downshift@{{ .Tag }}
+    ```
+
+    **Verify checksum:**
+    ```bash
+    sha256sum -c checksums.txt
+    ```
+
+    **Licence:** Business Source License 1.1 — free for non-commercial use.
+    Commercial use requires a written licence from Tiago de Carvalho Vilas Boas.
+    See [LICENSE](https://github.com/tiagovilasboas/harness-downshift/blob/main/LICENSE).
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch
+  groups:
+    - title: "New features"
+      regexp: "^feat"
+      order: 0
+    - title: "Bug fixes"
+      regexp: "^fix"
+      order: 1
+    - title: "Refactors"
+      regexp: "^refactor"
+      order: 2
+    - title: "Other"
+      order: 999
