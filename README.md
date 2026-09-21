@@ -23,9 +23,43 @@ Grok CLI. Any harness with controllable subagents next.
 **Keywords:** Claude Code subagent cost · LLM model routing · agent harness ·
 cost optimization · Claude Code hooks · Cursor subagents · Codex model selection
 
----
+## Quickstart — zero to working hook in 2 minutes
 
-## This is harness engineering
+**Step 1 — Install** (macOS / Linux):
+```bash
+curl -fsSL https://raw.githubusercontent.com/tiagovilasboas/harness-downshift/main/install.sh | sh
+```
+
+**Step 2 — Verify the classifier** on your own prompts before wiring the hook:
+```bash
+downshift try "rename the userId variable" claude-code
+# → TRIVIAL task → downshift to claude-haiku-4 (~95% cheaper)
+
+downshift try "rearchitect the auth module to support multi-tenant" claude-code
+# → COMPLEX task → upshift to claude-opus-4-8 (needs more torque)
+```
+
+**Step 3 — Add the hook** to `~/.claude/settings.json`:
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Task", "hooks": [{ "type": "command", "command": "downshift claude-code" }] }
+    ]
+  }
+}
+```
+
+**Step 4 — Confirm it's working.** Open Claude Code, ask it to spawn a subagent for a trivial task. You'll see this in the terminal:
+```
+downshift: TRIVIAL task → downshift to claude-haiku-4 (~95% cheaper)
+```
+
+That line in stderr means the hook fired and rewrote the model before the subagent started.
+
+> **⚠️ Claude Code Pro/Max/Teams/API only.** Free plan has no real subagents and blocks network installs. See [Plan compatibility](#plan-compatibility--read-before-installing) before proceeding.
+
+---
 
 > *"Agent = Model + Harness."* — [Martin Fowler](https://martinfowler.com/articles/harness-engineering.html)
 
@@ -422,6 +456,61 @@ underneath them — governance, AI FinOps, observability, and a
 model a subagent gets, so cost per token is controlled by design rather than
 reconstructed on the invoice. One brain, many harness adapters — the same
 "all harnesses point at a central decision" architecture, in the open.
+
+---
+
+## Troubleshooting
+
+### `downshift: command not found` after `go install`
+
+`go install` places the binary in `~/go/bin`, which may not be in your PATH.
+
+```bash
+export PATH="$HOME/go/bin:$PATH"          # current session
+echo 'export PATH="$HOME/go/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc  # permanent
+```
+
+The `curl` installer (`install.sh`) avoids this by writing directly to `/usr/local/bin`.
+
+### The hook runs but the model is not being changed (Cursor)
+
+On Cursor free plans and legacy request-based plans, `updated_input.model` is
+silently discarded by the harness — this is a [known Cursor issue](https://forum.cursor.com/t/pretooluse-hook-updated-input-is-silently-ignored-for-the-task-tool/151985).
+The hook fires and the binary runs (you'll see output on stderr), but the model
+rewrite has no effect. See [Plan compatibility](#plan-compatibility--read-before-installing).
+
+### No output on stderr — hook is not firing
+
+Check the matcher. Claude Code uses `"Task"` (capital T); `"Agent"` does not
+fire PreToolUse. Confirm with:
+
+```bash
+# Should print a JSON allow decision immediately
+echo '{"hook_event_name":"PreToolUse","tool_name":"Task","model":"claude-opus-4-8","tool_input":{"prompt":"test"}}' | downshift claude-code
+```
+
+If that prints JSON, the binary works. If the hook still does not fire in a
+live session, check that `settings.json` is valid JSON and that the path to
+`downshift` is the absolute path (or is in PATH).
+
+### `go install` fails on Claude Code free
+
+Claude Code free runs in a sandboxed container with no network egress. Install
+the binary on your local machine first, then use the hook — the binary runs on
+your machine, not inside Claude Code's container.
+
+### Verdict shows UNKNOWN instead of DOWNSHIFT
+
+`UNKNOWN` means no current model was provided. Pass the current model as the
+third argument to `try`:
+
+```bash
+downshift try "rename the variable" claude-code claude-opus-4-8
+# → DOWNSHIFT
+```
+
+In the live hook this is handled automatically — the event carries the session
+model and the adapter reads it.
 
 ---
 
