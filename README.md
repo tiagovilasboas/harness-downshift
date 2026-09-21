@@ -567,7 +567,7 @@ our assumptions.
 - **New harness adapter** — implement `internal/adapters/<harness>/` following
   the Claude Code adapter as a template. The `core` package is harness-agnostic;
   an adapter only translates a `core.Decision` into that harness's mechanism.
-  See [REFACTOR.md](REFACTOR.md) for the step-by-step guide.
+  See [CONTRIBUTING.md](CONTRIBUTING.md) for the step-by-step guide.
 - **Model catalog updates** — prices and model IDs live in
   `internal/catalog/catalog.json`. Edit the JSON (with a source link in the
   PR description) — no Go changes needed. Or run `downshift models pull` to

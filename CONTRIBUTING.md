@@ -67,7 +67,7 @@ Then:
 - Wire a new subcommand in `cmd/downshift/main.go`.
 - Add table-driven tests that inject `catalog.Load()` as the resolver.
 
-See [REFACTOR.md](REFACTOR.md) for the full step-by-step guide.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full step-by-step guide.
 
 ## Updating model data
 
