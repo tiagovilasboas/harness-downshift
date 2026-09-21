@@ -168,3 +168,17 @@ func (d Decision) ShouldRewriteModel() bool {
 func (d Decision) ShouldApplyEffort() bool {
 	return d.Model.ID != ""
 }
+
+// ShouldPreserveExplicitModel returns true when the user's current model is
+// marked routing:"explicit_only" in the catalog. Explicit-only models (e.g.
+// a top-tier or specialised model the user deliberately selected) must never
+// be replaced by automatic routing — the adapter should leave them unchanged.
+//
+// When the current model ID is empty or not found in the catalog, the method
+// returns false so normal routing proceeds.
+func (d Decision) ShouldPreserveExplicitModel(currentModelID string, r Resolver) bool {
+	if currentModelID == "" || r == nil {
+		return false
+	}
+	return r.IsExplicitOnly(d.Harness, currentModelID)
+}

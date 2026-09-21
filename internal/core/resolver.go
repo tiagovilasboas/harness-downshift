@@ -43,4 +43,10 @@ type Resolver interface {
 	// thinking budget "0"/"8000"/"16000"). Falls back to effort.String()
 	// when no mapping is found — adapters can always call this safely.
 	EffortFor(harness, modelID string, effort Effort) string
+
+	// IsExplicitOnly returns true when the given model ID is marked
+	// routing:"explicit_only" in the catalog. Explicit-only models are valid
+	// current selections but must never be chosen as an automatic routing
+	// target. When the ID is unknown, returns false (fail-open).
+	IsExplicitOnly(harness, modelID string) bool
 }
