@@ -69,8 +69,8 @@ func anthropicResponse(ids ...string) string {
 // --- Check with real HTTP via httptest ---
 
 func TestCheck_DetectsKnownAndNewModels(t *testing.T) {
-	// Anthropic returns one known model + one new model.
-	anthropicSrv := serveModels(t, anthropicResponse("claude-haiku-4", "claude-haiku-5-new"))
+	// Anthropic returns one known model + one new model (not in any known family).
+	anthropicSrv := serveModels(t, anthropicResponse("claude-haiku-4", "claude-phoenix-1-new"))
 	defer anthropicSrv.Close()
 
 	// OpenAI returns only known models (no new).
@@ -88,7 +88,7 @@ func TestCheck_DetectsKnownAndNewModels(t *testing.T) {
 		t.Errorf("rc = %d, want 0; stderr: %s", rc, errOut.String())
 	}
 	text := out.String()
-	if !strings.Contains(text, "claude-haiku-5-new") {
+	if !strings.Contains(text, "claude-phoenix-1-new") {
 		t.Errorf("output missing new model; got:\n%s", text)
 	}
 	if !strings.Contains(text, "models pull") {
@@ -180,7 +180,7 @@ func TestCheck_FiltersInternalModels(t *testing.T) {
 
 func TestCheck_AnthropicModelsEnvelope(t *testing.T) {
 	// Anthropic uses {"models":[...]} not {"data":[...]}
-	srv := serveModels(t, anthropicResponse("claude-haiku-4", "claude-sonnet-5-new"))
+	srv := serveModels(t, anthropicResponse("claude-haiku-4", "claude-nova-brand-new"))
 	defer srv.Close()
 
 	t.Setenv("ANTHROPIC_API_KEY", "test-key")
@@ -190,7 +190,7 @@ func TestCheck_AnthropicModelsEnvelope(t *testing.T) {
 	models.CheckWithProviders(cat, mockProviders(srv.URL, "http://unused"),
 		&http.Client{}, &out, &errOut)
 
-	if !strings.Contains(out.String(), "claude-sonnet-5-new") {
+	if !strings.Contains(out.String(), "claude-nova-brand-new") {
 		t.Errorf("Anthropic-style envelope not parsed; got:\n%s", out.String())
 	}
 }

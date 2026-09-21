@@ -58,7 +58,7 @@ func TestLookupByID_Found(t *testing.T) {
 
 func TestLookupByID_NotFound(t *testing.T) {
 	c := Load()
-	_, ok := c.LookupByID("claude-code", "nonexistent-model")
+	_, ok := c.LookupByID("claude-code", "nonexistent-xyz-12345")
 	if ok {
 		t.Error("LookupByID(nonexistent) should return false")
 	}
@@ -69,6 +69,71 @@ func TestLookupByID_EmptyID(t *testing.T) {
 	_, ok := c.LookupByID("claude-code", "")
 	if ok {
 		t.Error("LookupByID('') should return false")
+	}
+}
+
+// --- Family prefix (version-agnostic) matching ---
+
+func TestLookupByID_FamilyMatchVersionBump(t *testing.T) {
+	c := Load()
+	// claude-opus-4-9 doesn't exist in the catalog, but starts with family
+	// "claude-opus" → should match the frontier tier entry.
+	m, ok := c.LookupByID("claude-code", "claude-opus-4-9")
+	if !ok {
+		t.Fatal("version-bumped opus ID should match via family prefix")
+	}
+	if m.Tier != core.TierFrontier {
+		t.Errorf("family match tier = %s, want frontier", m.Tier)
+	}
+}
+
+func TestLookupByID_FamilyMatchHaiku(t *testing.T) {
+	c := Load()
+	m, ok := c.LookupByID("claude-code", "claude-haiku-5")
+	if !ok {
+		t.Fatal("claude-haiku-5 should match via family 'claude-haiku'")
+	}
+	if m.Tier != core.TierSmall {
+		t.Errorf("family match tier = %s, want small", m.Tier)
+	}
+}
+
+func TestLookupByID_FamilyMatchCodexFrontier(t *testing.T) {
+	c := Load()
+	// gpt-5.3-codex-v2 starts with family "gpt-5.3-codex" → frontier
+	m, ok := c.LookupByID("codex", "gpt-5.3-codex-v2")
+	if !ok {
+		t.Fatal("gpt-5.3-codex-v2 should match via family")
+	}
+	if m.Tier != core.TierFrontier {
+		t.Errorf("family match tier = %s, want frontier", m.Tier)
+	}
+}
+
+func TestLookupByID_FamilyMatchCaseInsensitive(t *testing.T) {
+	c := Load()
+	m, ok := c.LookupByID("claude-code", "Claude-Opus-5")
+	if !ok {
+		t.Fatal("family match should be case-insensitive")
+	}
+	if m.Tier != core.TierFrontier {
+		t.Errorf("tier = %s, want frontier", m.Tier)
+	}
+}
+
+func TestLookupByID_ExactWinsOverFamily(t *testing.T) {
+	c := Load()
+	// Exact ID match must take precedence over family prefix.
+	// "claude-sonnet-4-6" is in catalog; if family also matched claude-sonnet,
+	// the result must still be the exact entry (same tier here, but the model
+	// ID must come from the exact match, not a different family hit).
+	exact := c.ModelFor("claude-code", core.TierMid)
+	m, ok := c.LookupByID("claude-code", exact.ID)
+	if !ok {
+		t.Fatal("exact ID not found")
+	}
+	if m.ID != exact.ID {
+		t.Errorf("exact match returned wrong ID %q, want %q", m.ID, exact.ID)
 	}
 }
 

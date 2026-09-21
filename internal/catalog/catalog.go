@@ -33,15 +33,16 @@ var embeddedJSON []byte
 
 // Entry is one row in the catalog JSON.
 type Entry struct {
-	ID           string            `json:"id"`
-	Aliases      []string          `json:"aliases"`
-	Provider     string            `json:"provider"`
-	Harness      string            `json:"harness"`
-	Tier         string            `json:"tier"`   // "small" | "mid" | "frontier" | "unknown"
-	EffortScale  string            `json:"effort_scale"`
-	EffortMap    map[string]string `json:"effort_map"` // "low"|"medium"|"high" → native string
-	InputCostM   float64           `json:"input_cost_per_1m"`
-	OutputCostM  float64           `json:"output_cost_per_1m"`
+	ID          string            `json:"id"`
+	Aliases     []string          `json:"aliases"`
+	Family      string            `json:"family"`      // stable prefix for version-agnostic matching
+	Provider    string            `json:"provider"`
+	Harness     string            `json:"harness"`
+	Tier        string            `json:"tier"`        // "small" | "mid" | "frontier" | "unknown"
+	EffortScale string            `json:"effort_scale"`
+	EffortMap   map[string]string `json:"effort_map"`  // "low"|"medium"|"high" → native string
+	InputCostM  float64           `json:"input_cost_per_1m"`
+	OutputCostM float64           `json:"output_cost_per_1m"`
 }
 
 // catalogFile is the structure of the JSON file on disk.
@@ -53,12 +54,20 @@ type catalogFile struct {
 
 // Catalog is the resolved in-memory model store, implementing core.Resolver.
 type Catalog struct {
-	// index: harness → tier → Model (primary lookup)
+	// index: harness → tier → Model (primary lookup for routing)
 	index map[string]map[core.Tier]core.Model
-	// byID: harness → modelID → Model (secondary lookup for current-model resolution)
+	// byID: harness → modelID/alias → Model (exact and alias lookup)
 	byID map[string]map[string]core.Model
+	// byFamily: harness → family prefix → Model (version-agnostic fallback)
+	byFamily map[string][]familyEntry
 	// entries: all raw entries (for list/check/pull commands)
 	entries []Entry
+}
+
+// familyEntry pairs a stable family prefix with the model it maps to.
+type familyEntry struct {
+	prefix string
+	model  core.Model
 }
 
 // Load returns the effective Catalog. Load priority:
@@ -110,9 +119,10 @@ func parse(data []byte) (*Catalog, error) {
 	}
 
 	c := &Catalog{
-		index:   make(map[string]map[core.Tier]core.Model),
-		byID:    make(map[string]map[string]core.Model),
-		entries: f.Entries,
+		index:    make(map[string]map[core.Tier]core.Model),
+		byID:     make(map[string]map[string]core.Model),
+		byFamily: make(map[string][]familyEntry),
+		entries:  f.Entries,
 	}
 
 	for _, e := range f.Entries {
@@ -142,6 +152,13 @@ func parse(data []byte) (*Catalog, error) {
 		c.byID[e.Harness][e.ID] = m
 		for _, alias := range e.Aliases {
 			c.byID[e.Harness][alias] = m
+		}
+
+		// Build the family index for version-agnostic fallback.
+		// Each family prefix is added once per (harness, family) pair.
+		if e.Family != "" {
+			fe := familyEntry{prefix: strings.ToLower(e.Family), model: m}
+			c.byFamily[e.Harness] = append(c.byFamily[e.Harness], fe)
 		}
 	}
 	return c, nil
@@ -181,16 +198,37 @@ func (c *Catalog) ModelFor(harness string, tier core.Tier) core.Model {
 	return core.Model{Tier: tier, Harness: harness}
 }
 
-// LookupByID returns the model with the given ID in the given harness catalog.
+// LookupByID resolves a model ID to a catalog entry using three strategies,
+// in priority order:
+//
+//  1. Exact match — the full ID matches (e.g. "claude-opus-4-8").
+//  2. Alias match — the ID matches a declared alias (e.g. "claude-opus").
+//  3. Family prefix match — the ID starts with the entry's family string
+//     (e.g. "claude-opus-4-9" matches family "claude-opus"). Case-insensitive.
+//
+// This makes routing version-agnostic: a new model version is automatically
+// mapped to the same tier as the previous version in the same family, without
+// any catalog update.
 func (c *Catalog) LookupByID(harness, modelID string) (core.Model, bool) {
 	if modelID == "" {
 		return core.Model{}, false
 	}
+
+	// 1 & 2: exact / alias (already merged in byID map, O(1)).
 	if h, ok := c.byID[harness]; ok {
 		if m, ok := h[modelID]; ok {
 			return m, true
 		}
 	}
+
+	// 3: family prefix — version-agnostic fallback.
+	lower := strings.ToLower(modelID)
+	for _, fe := range c.byFamily[harness] {
+		if strings.HasPrefix(lower, fe.prefix) {
+			return fe.model, true
+		}
+	}
+
 	return core.Model{}, false
 }
 
@@ -222,11 +260,35 @@ func EffortValue(e Entry, effort core.Effort) string {
 	return effort.String()
 }
 
-// EntryFor returns the raw Entry for a given harness+modelID, if present.
+// EntryFor returns the raw Entry for a given harness+modelID. Uses the same
+// three-strategy lookup as LookupByID (exact → alias → family prefix).
 func (c *Catalog) EntryFor(harness, modelID string) (Entry, bool) {
+	if modelID == "" {
+		return Entry{}, false
+	}
+	lower := strings.ToLower(modelID)
+
+	// Exact and alias match.
 	for _, e := range c.entries {
-		if e.Harness == harness && e.ID == modelID {
+		if e.Harness != harness {
+			continue
+		}
+		if e.ID == modelID {
 			return e, true
+		}
+		for _, a := range e.Aliases {
+			if a == modelID {
+				return e, true
+			}
+		}
+	}
+
+	// Family prefix fallback.
+	for _, e := range c.entries {
+		if e.Harness == harness && e.Family != "" {
+			if strings.HasPrefix(lower, strings.ToLower(e.Family)) {
+				return e, true
+			}
 		}
 	}
 	return Entry{}, false

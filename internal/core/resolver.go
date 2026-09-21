@@ -19,8 +19,15 @@ type Resolver interface {
 	// If the harness is unknown it must return a safe fallback (not zero).
 	ModelFor(harness string, tier Tier) Model
 
-	// LookupByID returns the Model with the given ID in the given harness
-	// catalog, and whether it was found.
+	// LookupByID resolves a model ID to a catalog entry using three strategies:
+	// 1. Exact match (full ID string).
+	// 2. Alias match (declared aliases for the entry).
+	// 3. Family prefix match — case-insensitive HasPrefix against the entry's
+	//    family field, making routing version-agnostic. A model whose ID starts
+	//    with a known family prefix (e.g. "claude-opus") will match even if the
+	//    exact version (e.g. "claude-opus-4-9") is not yet in the catalog.
+	//
+	// Implementations must return (Model{}, false) for empty or unrecognised IDs.
 	LookupByID(harness, modelID string) (Model, bool)
 
 	// SavingsRatio returns how much cheaper `to` is versus `from` as a
