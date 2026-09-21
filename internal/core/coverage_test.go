@@ -84,10 +84,62 @@ func TestPlan_NilResolver_DoesNotPreserve(t *testing.T) {
 	}
 }
 
-// --- ShouldRewriteModel — empty model ID ---
+// --- Tier.String() and Effort.String() all branches ---
 
+func TestTierString_AllBranches(t *testing.T) {
+	cases := map[core.Tier]string{
+		core.TierSmall:    "small",
+		core.TierMid:      "mid",
+		core.TierFrontier: "frontier",
+		core.Tier(99):     "unknown",
+	}
+	for tier, want := range cases {
+		if got := tier.String(); got != want {
+			t.Errorf("Tier(%d).String() = %q, want %q", tier, got, want)
+		}
+	}
+}
+
+func TestEffortString_AllBranches(t *testing.T) {
+	cases := map[core.Effort]string{
+		core.EffortLow:  "low",
+		core.EffortMid:  "medium",
+		core.EffortHigh: "high",
+		core.Effort(99): "medium", // default branch
+	}
+	for effort, want := range cases {
+		if got := effort.String(); got != want {
+			t.Errorf("Effort(%d).String() = %q, want %q", effort, got, want)
+		}
+	}
+}
+
+// --- ShouldPreserveExplicitModel edge: r != nil, empty model ID ---
+
+func TestShouldPreserveExplicitModel_EmptyModelID_NilResolver(t *testing.T) {
+	d := core.Route("rename", "codex", "", covCat)
+	// r is provided but currentModelID is empty → must return false
+	if d.ShouldPreserveExplicitModel("", covCat) {
+		t.Error("empty model ID must not trigger preservation even with a resolver")
+	}
+}
+
+func TestShouldPreserveExplicitModel_NonExplicitModel(t *testing.T) {
+	frontierID := covCat.ModelFor("codex", core.TierFrontier).ID
+	d := core.Route("rename", "codex", frontierID, covCat)
+	if d.ShouldPreserveExplicitModel(frontierID, covCat) {
+		t.Errorf("normal frontier model %q must not be preserved", frontierID)
+	}
+}
+
+func TestShouldPreserveExplicitModel_ExplicitOnly(t *testing.T) {
+	d := core.Route("rename", "codex", "gpt-6-astra", covCat)
+	if !d.ShouldPreserveExplicitModel("gpt-6-astra", covCat) {
+		t.Error("explicit_only model must be preserved")
+	}
+}
+// A Decision with no recommended model must never trigger a rewrite.
 func TestShouldRewriteModel_EmptyModelID(t *testing.T) {
-	// A Decision with no recommended model must never trigger a rewrite.
 	d := core.Decision{}
 	if d.ShouldRewriteModel() {
 		t.Error("empty model ID must return false from ShouldRewriteModel")
