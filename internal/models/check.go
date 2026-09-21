@@ -15,58 +15,50 @@ import (
 	"time"
 )
 
-// providerConfig describes one provider's model-list API.
-type providerConfig struct {
-	name    string
-	apiURL  string
-	envKey  string
-	harness string // which harness these models belong to
+// ProviderConfig describes one provider's model-list API.
+// Exported so tests can inject mock providers pointing at httptest.Server URLs.
+type ProviderConfig struct {
+	Name    string
+	APIURL  string
+	EnvKey  string
+	Harness string // which harness these models belong to
 }
 
-var providers = []providerConfig{
-	{
-		name:    "Anthropic",
-		apiURL:  "https://api.anthropic.com/v1/models",
-		envKey:  "ANTHROPIC_API_KEY",
-		harness: "claude-code",
-	},
-	{
-		name:    "OpenAI",
-		apiURL:  "https://api.openai.com/v1/models",
-		envKey:  "OPENAI_API_KEY",
-		harness: "codex",
-	},
-	{
-		name:    "xAI",
-		apiURL:  "https://api.x.ai/v1/models",
-		envKey:  "XAI_API_KEY",
-		harness: "grok",
-	},
+// defaultProviders is the production list of provider endpoints.
+var defaultProviders = []ProviderConfig{
+	{Name: "Anthropic", APIURL: "https://api.anthropic.com/v1/models", EnvKey: "ANTHROPIC_API_KEY", Harness: "claude-code"},
+	{Name: "OpenAI", APIURL: "https://api.openai.com/v1/models", EnvKey: "OPENAI_API_KEY", Harness: "codex"},
+	{Name: "xAI", APIURL: "https://api.x.ai/v1/models", EnvKey: "XAI_API_KEY", Harness: "grok"},
 }
 
-// Check queries each provider's model list API, diffs it against the effective
-// catalog, and reports known models and new/untiered models.
+// Check queries each provider's model list API, diffs against the catalog,
+// and reports known models and new/untiered ones.
 func Check(cat CatalogReader, w, errW io.Writer) int {
-	client := &http.Client{Timeout: 10 * time.Second}
+	return CheckWithProviders(cat, defaultProviders, &http.Client{Timeout: 10 * time.Second}, w, errW)
+}
+
+// CheckWithProviders is the testable core of Check. Tests inject mock providers
+// pointing at httptest.Server URLs and a pre-configured HTTP client.
+func CheckWithProviders(cat CatalogReader, providers []ProviderConfig, client *http.Client, w, errW io.Writer) int {
 	anyChecked := false
 	anyNew := false
 
 	for _, p := range providers {
-		key := os.Getenv(p.envKey)
+		key := os.Getenv(p.EnvKey)
 		if key == "" {
-			fmt.Fprintf(w, "%-10s skipped — set %s to enable\n", p.name, p.envKey)
+			fmt.Fprintf(w, "%-10s skipped — set %s to enable\n", p.Name, p.EnvKey)
 			continue
 		}
 
 		ids, err := fetchModelIDs(client, p, key)
 		if err != nil {
-			fmt.Fprintf(errW, "%-10s error: %v (skipping)\n", p.name, err)
+			fmt.Fprintf(errW, "%-10s error: %v (skipping)\n", p.Name, err)
 			continue
 		}
 		anyChecked = true
 
-		known, newModels := diffModels(cat, p.harness, ids)
-		fmt.Fprintf(w, "%-10s %d known", p.name, len(known))
+		known, newModels := diffModels(cat, p.Harness, ids)
+		fmt.Fprintf(w, "%-10s %d known", p.Name, len(known))
 		if len(newModels) == 0 {
 			fmt.Fprintln(w, ", 0 new ✓")
 		} else {
@@ -92,18 +84,16 @@ func Check(cat CatalogReader, w, errW io.Writer) int {
 }
 
 // fetchModelIDs calls a provider's /v1/models endpoint and returns model IDs.
-// It handles both OpenAI-style {"data":[{"id":"..."}]} and
-// Anthropic-style {"models":[{"id":"..."}]} responses.
-func fetchModelIDs(client *http.Client, p providerConfig, apiKey string) ([]string, error) {
+// Handles both OpenAI {"data":[{"id":"..."}]} and Anthropic {"models":[{"id":"..."}]}.
+func fetchModelIDs(client *http.Client, p ProviderConfig, apiKey string) ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.apiURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.APIURL, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
-	// Anthropic also requires this header.
 	req.Header.Set("anthropic-version", "2023-06-01")
 
 	resp, err := client.Do(req)
@@ -113,10 +103,9 @@ func fetchModelIDs(client *http.Client, p providerConfig, apiKey string) ([]stri
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP %d from %s", resp.StatusCode, p.apiURL)
+		return nil, fmt.Errorf("HTTP %d from %s", resp.StatusCode, p.APIURL)
 	}
 
-	// Parse into a generic envelope: accepts both "data" and "models" arrays.
 	var envelope struct {
 		Data   []struct{ ID string `json:"id"` } `json:"data"`
 		Models []struct{ ID string `json:"id"` } `json:"models"`
@@ -142,11 +131,9 @@ func fetchModelIDs(client *http.Client, p providerConfig, apiKey string) ([]stri
 	return ids, nil
 }
 
-// diffModels compares a list of provider model IDs against the catalog.
-// Returns (known IDs, new IDs not yet in the catalog).
+// diffModels compares provider model IDs against the catalog.
 func diffModels(cat CatalogReader, harness string, ids []string) (known, newModels []string) {
 	for _, id := range ids {
-		// Skip internal/deprecated slugs (embeddings, tts, dall-e, etc.)
 		if isInternalModel(id) {
 			continue
 		}
@@ -159,8 +146,7 @@ func diffModels(cat CatalogReader, harness string, ids []string) (known, newMode
 	return
 }
 
-// isInternalModel returns true for model IDs that are not coding/chat models
-// and should not appear in the catalog (embeddings, TTS, image gen, etc.).
+// isInternalModel returns true for non-coding/chat model IDs.
 func isInternalModel(id string) bool {
 	lower := strings.ToLower(id)
 	skip := []string{"embed", "tts", "dall-e", "whisper", "davinci", "babbage",
