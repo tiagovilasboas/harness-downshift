@@ -32,11 +32,23 @@ func main() {
 
 	switch args[0] {
 	case "claude-code":
-		os.Exit(runClaudeCode())
+		os.Exit(runHookAdapter(
+			func(b []byte) (claudecode.Event, error) { var e claudecode.Event; return e, json.Unmarshal(b, &e) },
+			func(e claudecode.Event) (any, string) { return claudecode.Handle(e) },
+			printAllow,
+		))
 	case "cursor":
-		os.Exit(runCursor())
+		os.Exit(runHookAdapter(
+			func(b []byte) (cursor.Event, error) { var e cursor.Event; return e, json.Unmarshal(b, &e) },
+			func(e cursor.Event) (any, string) { return cursor.Handle(e) },
+			printCursorAllow,
+		))
 	case "codex":
-		os.Exit(runCodex())
+		os.Exit(runHookAdapter(
+			func(b []byte) (codex.Event, error) { var e codex.Event; return e, json.Unmarshal(b, &e) },
+			func(e codex.Event) (any, string) { return codex.Handle(e) },
+			printCodexAllow,
+		))
 	case "try":
 		os.Exit(runTry(args[1:]))
 	case "-h", "--help", "help":
@@ -49,79 +61,31 @@ func main() {
 	}
 }
 
-// runClaudeCode reads a PreToolUse event on stdin and prints the steering JSON.
-// It always exits 0 and always prints a valid "allow" decision, so a parse
-// failure never blocks the user's tool call (fail-open).
-func runClaudeCode() int {
+// runHookAdapter is the single hook-runner template shared by all harness
+// adapters. It reads a JSON event from stdin, calls handle, and encodes the
+// result to stdout. Any failure (read error, parse error, encode error) prints
+// the harness-specific fail-open response and exits 0 — the spawn must never
+// be blocked by a router error.
+//
+// Type parameter E is the harness-specific event struct.
+func runHookAdapter[E any](
+	parse func([]byte) (E, error),
+	handle func(E) (any, string),
+	failOpen func(),
+) int {
 	data, err := io.ReadAll(os.Stdin)
 	if err != nil {
-		printAllow()
+		failOpen()
 		return 0
 	}
-
-	var ev claudecode.Event
-	if err := json.Unmarshal(data, &ev); err != nil {
-		printAllow()
-		return 0
-	}
-
-	out, note := claudecode.Handle(ev)
-	enc := json.NewEncoder(os.Stdout)
-	if err := enc.Encode(out); err != nil {
-		printAllow()
-		return 0
-	}
-	if note != "" {
-		fmt.Fprintln(os.Stderr, "downshift: "+note)
-	}
-	return 0
-}
-
-// runCursor reads a preToolUse event on stdin and prints Cursor's steering
-// JSON. Fail-open: any failure prints a plain allow and exits 0.
-func runCursor() int {
-	data, err := io.ReadAll(os.Stdin)
+	ev, err := parse(data)
 	if err != nil {
-		printCursorAllow()
+		failOpen()
 		return 0
 	}
-
-	var ev cursor.Event
-	if err := json.Unmarshal(data, &ev); err != nil {
-		printCursorAllow()
-		return 0
-	}
-
-	out, note := cursor.Handle(ev)
+	out, note := handle(ev)
 	if err := json.NewEncoder(os.Stdout).Encode(out); err != nil {
-		printCursorAllow()
-		return 0
-	}
-	if note != "" {
-		fmt.Fprintln(os.Stderr, "downshift: "+note)
-	}
-	return 0
-}
-
-// runCodex reads a PreToolUse event on stdin and prints Codex's steering JSON
-// for multi_agent_v2 spawn_agent calls. Fail-open: any failure prints a plain
-// allow (continue:true) and exits 0.
-func runCodex() int {
-	data, err := io.ReadAll(os.Stdin)
-	if err != nil {
-		printCodexAllow()
-		return 0
-	}
-
-	var ev codex.Event
-	if err := json.Unmarshal(data, &ev); err != nil {
-		printCodexAllow()
-		return 0
-	}
-
-	out, note := codex.Handle(ev)
-	if err := json.NewEncoder(os.Stdout).Encode(out); err != nil {
-		printCodexAllow()
+		failOpen()
 		return 0
 	}
 	if note != "" {
@@ -146,17 +110,17 @@ func runTry(args []string) int {
 		current = args[2]
 	}
 
-	// Grok ships a single coding model with configurable reasoning, so the
-	// lever there is reasoning effort, not model tier. Report that instead of a
-	// misleading model id, and point at the config-based mechanism.
+	// Grok uses a single model with configurable reasoning — report effort
+	// instead of a model ID, and point at the config-based mechanism.
 	if harness == "grok" {
 		cls := core.Classify(prompt)
 		tier := cls.Complexity.Tier()
+		effort := core.EffortFor(tier) // Wave 4 promotes this; for now mirrors grokEffortFor
 		fmt.Printf("Task:       %s\n", prompt)
 		fmt.Printf("Complexity: %s\n", cls.Complexity)
 		fmt.Printf("Needs tier: %s\n", tier)
-		fmt.Printf("Reasoning:  %s  (grok-4.6, configurable reasoning)\n", grokEffortFor(tier))
-		fmt.Printf("→ set reasoning_effort=%q on the subagent role/persona in config.toml\n", grokEffortFor(tier))
+		fmt.Printf("Reasoning:  %s  (grok-4.6, configurable reasoning)\n", effort)
+		fmt.Printf("→ set reasoning_effort=%q on the subagent role/persona in config.toml\n", effort.String())
 		return 0
 	}
 
@@ -173,18 +137,9 @@ func runTry(args []string) int {
 	return 0
 }
 
-// grokEffortFor maps a complexity tier to a Grok reasoning_effort level. Grok
-// accepts low, medium, and high. Cheaper tiers get lower effort.
-func grokEffortFor(tier core.Tier) string {
-	switch tier {
-	case core.TierSmall:
-		return "low"
-	case core.TierMid:
-		return "medium"
-	default:
-		return "high"
-	}
-}
+// --- Harness-specific fail-open responses ---
+// Each harness has a different envelope for "allow unchanged". These are the
+// minimal valid JSON outputs that let the tool call proceed unmodified.
 
 func printAllow() {
 	fmt.Println(`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}`)
