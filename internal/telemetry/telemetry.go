@@ -73,6 +73,15 @@ func Record(ev Event) {
 
 // AppendTo appends ev to the given path, creating the file and parent
 // directories as needed. Returns any write error.
+//
+// Concurrency note: the in-process mutex (mu) prevents data races between
+// goroutines in the same binary. It does NOT protect against concurrent
+// writes from multiple downshift processes (e.g. two harnesses firing hooks
+// in parallel). On POSIX systems, O_APPEND writes smaller than PIPE_BUF
+// (~4 KB) are atomic at the kernel level, so interleaved JSON lines are
+// unlikely in normal use. A future version should use file locking (flock)
+// or migrate to SQLite for full multi-process correctness.
+// TODO: replace with SQLite for multi-process safety and richer queries.
 func AppendTo(path string, ev Event) error {
 	mu.Lock()
 	defer mu.Unlock()
@@ -90,8 +99,10 @@ func AppendTo(path string, ev Event) error {
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(f, "%s\n", line)
-	return err
+	if _, err := fmt.Fprintf(f, "%s\n", line); err != nil {
+		return err
+	}
+	return f.Sync() // flush to OS before releasing the lock
 }
 
 // Stats is the aggregated view of all recorded events.

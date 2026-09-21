@@ -531,14 +531,15 @@ Wasteful over-routing (SMALL → dearer tier):
 
 The two numbers that matter for the business decision:
 
-**Tier routing accuracy (73.3%)** is the economic KPI. SIMPLE predicted as
+**Tier routing accuracy (70.0%)** is the economic KPI. SIMPLE predicted as
 MEDIUM is a complexity miss but an identical routing decision — both go to
 the mid tier. Complexity accuracy (46.7%) makes the classifier look worse
 than it really is in terms of actual model selection.
 
-**FRONTIER→SMALL = 0%** is the safety property. No COMPLEX task was routed to
-the cheapest model. FRONTIER→MID (42.9%) wastes a bit of safety margin but
-the cost differential is small (frontier vs mid, not frontier vs haiku).
+**Observed FRONTIER→SMALL rate on the seed dataset: 0.0%** (0 / 7 COMPLEX tasks).
+That is a good signal on 30 tasks — not yet a proven safety guarantee.
+FRONTIER→MID (42.9%) is the current main gap: those tasks get a capable model
+but not the strongest one. That is the classifier's known weak spot on this seed.
 
 The seed dataset has 30 tasks. The format is
 `[{"prompt":"…","label":"TRIVIAL|SIMPLE|MEDIUM|COMPLEX"}]`.
