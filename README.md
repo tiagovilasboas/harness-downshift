@@ -340,7 +340,7 @@ to a role's reasoning effort in config once.
 
 ## Architecture
 
-![Architecture](docs/img/architecture.svg)
+![Architecture](docs/img/architecture.svg?v=2)
 
 Dependency direction is one-way: `catalog → core`, never reversed. Model IDs
 and costs live in `catalog.json` — no Go recompile needed to add or update a
