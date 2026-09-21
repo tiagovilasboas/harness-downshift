@@ -95,6 +95,14 @@ echo ""
 if command -v downshift >/dev/null 2>&1; then
   downshift --help 2>/dev/null | head -3 || true
 else
-  echo "Note: ${INSTALL_DIR} may not be in your PATH."
-  echo "Add it: export PATH=\"${INSTALL_DIR}:\$PATH\""
+  echo "⚠️  '${INSTALL_DIR}' is not in your PATH."
+  echo ""
+  echo "Add it now (current session):"
+  echo "  export PATH=\"${INSTALL_DIR}:\$PATH\""
+  echo ""
+  echo "Add it permanently (zsh):"
+  echo "  echo 'export PATH=\"${INSTALL_DIR}:\$PATH\"' >> ~/.zshrc && source ~/.zshrc"
+  echo ""
+  echo "Or move the binary to a directory already in PATH:"
+  echo "  sudo mv ${INSTALL_DIR}/downshift /usr/local/bin/downshift"
 fi

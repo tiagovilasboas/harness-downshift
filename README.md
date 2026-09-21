@@ -116,14 +116,20 @@ Build or install the single binary (no runtime, no dependencies):
 
 ```bash
 # Recommended — one-liner installer (macOS / Linux, detects arch automatically)
+# Installs to /usr/local/bin/downshift — no PATH changes needed
 curl -fsSL https://raw.githubusercontent.com/tiagovilasboas/harness-downshift/main/install.sh | sh
 
 # Alternative — Go toolchain (any platform)
 go install github.com/tiagovilasboas/harness-downshift/cmd/downshift@latest
-
-# Specific beta version
-go install github.com/tiagovilasboas/harness-downshift/cmd/downshift@v0.1.0-beta.1
 ```
+
+> **Go toolchain note:** `go install` places the binary in `~/go/bin`.
+> If `downshift: command not found`, add Go's bin to your PATH:
+> ```bash
+> export PATH="$HOME/go/bin:$PATH"   # current session
+> echo 'export PATH="$HOME/go/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc  # permanent
+> ```
+> The `curl` installer above avoids this by installing directly to `/usr/local/bin`.
 
 Pre-built binaries for macOS (arm64/amd64), Linux (arm64/amd64), and Windows (amd64)
 are available on the [Releases](https://github.com/tiagovilasboas/harness-downshift/releases) page.
