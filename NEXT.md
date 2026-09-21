@@ -75,6 +75,8 @@ All three hook adapters:
 
 ## Architecture
 
+Refactor complete. All waves done.
+
 ```
 core/
   classifier.go       — complexity from text (scored signals)
