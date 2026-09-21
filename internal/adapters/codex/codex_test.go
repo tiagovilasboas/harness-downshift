@@ -249,3 +249,40 @@ func TestHandle_EmptyMessageFailsOpen(t *testing.T) {
 		t.Error("must not rewrite when there is no task text")
 	}
 }
+
+// TestHandle_SiblingFieldsPreserved is a regression test ensuring that a Codex
+// PreToolUse rewrite does not drop fields from the spawn_agent payload (the
+// v2 schema has reserved fields that must all survive the model/effort rewrite).
+func TestHandle_SiblingFieldsPreserved(t *testing.T) {
+	frontierID := catID(core.TierFrontier)
+	ev := codex.Event{
+		ToolName: "spawn_agent",
+		Model:    frontierID,
+		ToolInput: json.RawMessage(`{
+			"message":          "rename the userId variable",
+			"task_name":        "worker_agent_rename",
+			"fork_turns":       "none",
+			"model":            "` + frontierID + `",
+			"timeout_seconds":  120,
+			"background":       false
+		}`),
+	}
+	out, _ := codex.Handle(ev, cat)
+	m := decodeUpdated(t, out)
+	if m == nil {
+		t.Fatal("expected updatedInput")
+	}
+	wantID := catID(core.TierSmall)
+	if m["model"] != wantID {
+		t.Errorf("model = %v, want %s", m["model"], wantID)
+	}
+	if m["reasoning_effort"] == nil {
+		t.Error("reasoning_effort must be set")
+	}
+	// Reserved v2 fields must survive.
+	for _, field := range []string{"message", "task_name", "fork_turns", "timeout_seconds", "background"} {
+		if m[field] == nil {
+			t.Errorf("field %q was dropped from updatedInput", field)
+		}
+	}
+}

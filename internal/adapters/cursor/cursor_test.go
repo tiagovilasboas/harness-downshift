@@ -148,3 +148,37 @@ func TestHandle_FallsBackToEventModel(t *testing.T) {
 		t.Errorf("model = %v, want %s", m["model"], wantID)
 	}
 }
+
+// TestHandle_SiblingFieldsPreserved is a regression test ensuring that a Cursor
+// preToolUse rewrite does not drop fields like timeout or run_in_background.
+func TestHandle_SiblingFieldsPreserved(t *testing.T) {
+	frontierID := catID(core.TierFrontier)
+	ev := cursor.Event{
+		ToolName: "Task",
+		ModelID:  frontierID,
+		ToolInput: json.RawMessage(`{
+			"task":              "rename the userId variable",
+			"model":             "` + frontierID + `",
+			"timeout":           45,
+			"run_in_background": true
+		}`),
+	}
+	out, _ := cursor.Handle(ev, cat)
+	m := decodeUpdated(t, out)
+	if m == nil {
+		t.Fatal("expected updated_input")
+	}
+	wantID := catID(core.TierSmall)
+	if m["model"] != wantID {
+		t.Errorf("model = %v, want %s", m["model"], wantID)
+	}
+	if m["timeout"] == nil {
+		t.Error("timeout field was dropped from updated_input")
+	}
+	if m["run_in_background"] == nil {
+		t.Error("run_in_background field was dropped from updated_input")
+	}
+	if m["task"] == nil {
+		t.Error("task field was dropped from updated_input")
+	}
+}

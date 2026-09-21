@@ -163,3 +163,47 @@ func TestHandle_MalformedInputFailsOpen(t *testing.T) {
 		t.Error("malformed input must return allow")
 	}
 }
+
+// TestHandle_SiblingFieldsPreserved is a regression test for the updatedInput
+// replace-vs-patch behaviour. Claude Code's hook replaces the entire tool_input
+// with updatedInput — so the adapter must re-marshal the *full* decoded map
+// with only the model key changed. Any field not present in updatedInput is
+// silently dropped by the harness, which can break subagents that use timeout,
+// run_in_background, or other non-standard fields.
+func TestHandle_SiblingFieldsPreserved(t *testing.T) {
+	frontierID := catID(core.TierFrontier)
+	ev := claudecode.Event{
+		ToolName: "Task",
+		Model:    frontierID,
+		ToolInput: json.RawMessage(`{
+			"prompt":             "rename the userId variable",
+			"model":              "` + frontierID + `",
+			"timeout":            30,
+			"description":        "a short rename task",
+			"run_in_background":  false
+		}`),
+	}
+	out, _ := claudecode.Handle(ev, cat)
+	m := decodeUpdated(t, out)
+	if m == nil {
+		t.Fatal("expected updatedInput")
+	}
+	// Model must be rewritten.
+	wantID := catID(core.TierSmall)
+	if m["model"] != wantID {
+		t.Errorf("model = %v, want %s", m["model"], wantID)
+	}
+	// All sibling fields must survive the rewrite.
+	if m["timeout"] == nil {
+		t.Error("timeout field was dropped from updatedInput")
+	}
+	if m["description"] == nil {
+		t.Error("description field was dropped from updatedInput")
+	}
+	if m["run_in_background"] == nil {
+		t.Error("run_in_background field was dropped from updatedInput")
+	}
+	if m["prompt"] == nil {
+		t.Error("prompt field was dropped from updatedInput")
+	}
+}
