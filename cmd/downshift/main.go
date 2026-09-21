@@ -140,6 +140,7 @@ func runTry(cat core.Resolver, args []string) int {
 	d := core.Route(prompt, harness, current, cat)
 	fmt.Printf("Task:       %s\n", prompt)
 	fmt.Printf("Complexity: %s\n", d.Complexity)
+	fmt.Printf("Intent:     %s\n", d.Intent)
 	fmt.Printf("Needs tier: %s\n", d.Tier)
 	fmt.Printf("Recommend:  %s\n", d.Model.ID)
 	if d.CurrentModel.ID != "" {
