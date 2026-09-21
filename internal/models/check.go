@@ -13,8 +13,6 @@ import (
 	"os"
 	"strings"
 	"time"
-
-	"github.com/tiagovilasboas/harness-downshift/internal/catalog"
 )
 
 // providerConfig describes one provider's model-list API.
@@ -48,14 +46,7 @@ var providers = []providerConfig{
 
 // Check queries each provider's model list API, diffs it against the effective
 // catalog, and reports known models and new/untiered models.
-//
-// Missing API keys skip the provider silently (just a note).
-// Network errors, timeouts, or unexpected responses are reported but never
-// block — fall back continues with remaining providers.
-//
-// Returns exit code 0 on success (even if new models found), 1 only on a
-// hard error that prevented all provider checks.
-func Check(cat *catalog.Catalog, w, errW io.Writer) int {
+func Check(cat CatalogReader, w, errW io.Writer) int {
 	client := &http.Client{Timeout: 10 * time.Second}
 	anyChecked := false
 	anyNew := false
@@ -153,7 +144,7 @@ func fetchModelIDs(client *http.Client, p providerConfig, apiKey string) ([]stri
 
 // diffModels compares a list of provider model IDs against the catalog.
 // Returns (known IDs, new IDs not yet in the catalog).
-func diffModels(cat *catalog.Catalog, harness string, ids []string) (known, newModels []string) {
+func diffModels(cat CatalogReader, harness string, ids []string) (known, newModels []string) {
 	for _, id := range ids {
 		// Skip internal/deprecated slugs (embeddings, tts, dall-e, etc.)
 		if isInternalModel(id) {

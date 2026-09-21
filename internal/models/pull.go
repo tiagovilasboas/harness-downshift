@@ -29,16 +29,7 @@ type pullFile struct {
 
 // Pull discovers new models from provider APIs and merges them into the user's
 // catalog override at ~/.harness-downshift/catalog.json.
-//
-// Rules:
-//   - Existing entries keep their tier — never overwritten.
-//   - New models are added with tier="unknown" for the user to assign.
-//   - The operation is idempotent: running twice produces the same result.
-//   - Missing API keys skip that provider.
-//   - Any network/parse error skips that provider (fail-open).
-//
-// Returns exit code 0 on success, 1 on a fatal file-system error.
-func Pull(cat *catalog.Catalog, w, errW io.Writer) int {
+func Pull(cat CatalogReader, w, errW io.Writer) int {
 	client := &http.Client{Timeout: 10 * time.Second}
 
 	// Start from the current entries (embedded + any existing override).

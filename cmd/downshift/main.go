@@ -151,7 +151,7 @@ func runTry(cat core.Resolver, args []string) int {
 }
 
 // runModels dispatches the 'models' subcommands: list, check, pull.
-func runModels(cat *catalog.Catalog, args []string) int {
+func runModels(cat models.CatalogReader, args []string) int {
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "usage: downshift models <list|check|pull>")
 		return 2

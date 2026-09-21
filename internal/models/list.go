@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 // Commercial use requires a licence — see LICENSE for terms.
 
-// Package models implements the 'downshift models' subcommands:
-// list, check, and pull.
 package models
 
 import (
@@ -13,14 +11,12 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-
-	"github.com/tiagovilasboas/harness-downshift/internal/catalog"
 )
 
 // List prints the effective catalog as a formatted table to w.
 // Shows harness, tier, model ID, cost per 1M tokens, effort scale, and
 // which source is active (embedded or user override).
-func List(cat *catalog.Catalog, w io.Writer) {
+func List(cat CatalogReader, w io.Writer) {
 	entries := cat.Entries()
 	if len(entries) == 0 {
 		fmt.Fprintln(w, "catalog is empty")
