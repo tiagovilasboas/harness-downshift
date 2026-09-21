@@ -1,12 +1,15 @@
 {
-  "_comment": "Copy this file to ~/.harness-downshift/catalog.json and fill in the model IDs for your harnesses.",
-  "_comment2": "Run 'downshift models check' to discover new models from provider APIs.",
-  "version": "1",
-  "updated": "2026-09-20",
+  "_doc": "Copy this file to ~/.harness-downshift/catalog.json and fill in real values.",
+  "_doc2": "Run 'downshift models pull' with an API key to discover models from provider APIs.",
+  "_doc3": "Objects without 'id' and 'harness' (like _section comments) are silently skipped by the parser.",
+  "version": "2",
   "entries": [
+    { "_section": "claude-code — Anthropic native models" },
+
     {
-      "id": "YOUR_SMALL_MODEL_ID",
-      "aliases": [],
+      "id": "YOUR_HAIKU_ID",
+      "aliases": ["claude-haiku"],
+      "family": "claude-haiku",
       "provider": "anthropic",
       "harness": "claude-code",
       "tier": "small",
@@ -16,8 +19,9 @@
       "output_cost_per_1m": 0.00
     },
     {
-      "id": "YOUR_MID_MODEL_ID",
-      "aliases": [],
+      "id": "YOUR_SONNET_ID",
+      "aliases": ["claude-sonnet"],
+      "family": "claude-sonnet",
       "provider": "anthropic",
       "harness": "claude-code",
       "tier": "mid",
@@ -27,8 +31,9 @@
       "output_cost_per_1m": 0.00
     },
     {
-      "id": "YOUR_FRONTIER_MODEL_ID",
-      "aliases": [],
+      "id": "YOUR_OPUS_ID",
+      "aliases": ["claude-opus"],
+      "family": "claude-opus",
       "provider": "anthropic",
       "harness": "claude-code",
       "tier": "frontier",
@@ -37,9 +42,13 @@
       "input_cost_per_1m": 0.00,
       "output_cost_per_1m": 0.00
     },
+
+    { "_section": "codex — OpenAI models (multi_agent_v2)" },
+
     {
-      "id": "YOUR_CODEX_SMALL_MODEL_ID",
+      "id": "YOUR_CODEX_SMALL_ID",
       "aliases": [],
+      "family": "gpt-5.6-luna",
       "provider": "openai",
       "harness": "codex",
       "tier": "small",
@@ -47,6 +56,64 @@
       "effort_map": { "low": "low", "medium": "medium", "high": "high" },
       "input_cost_per_1m": 0.00,
       "output_cost_per_1m": 0.00
+    },
+    {
+      "id": "YOUR_CODEX_FRONTIER_ID",
+      "aliases": [],
+      "family": "gpt-5.6-sol",
+      "provider": "openai",
+      "harness": "codex",
+      "tier": "frontier",
+      "effort_scale": "reasoning_effort",
+      "effort_map": { "low": "low", "medium": "medium", "high": "high" },
+      "input_cost_per_1m": 0.00,
+      "output_cost_per_1m": 0.00
+    },
+
+    { "_section": "codex — explicit_only models (never chosen automatically)" },
+
+    {
+      "id": "YOUR_TOP_TIER_ID",
+      "aliases": [],
+      "family": "your-top-tier-family",
+      "provider": "openai",
+      "harness": "codex",
+      "tier": "frontier",
+      "routing": "explicit_only",
+      "effort_scale": "reasoning_effort",
+      "effort_map": { "low": "low", "medium": "medium", "high": "high" },
+      "input_cost_per_1m": 0.00,
+      "output_cost_per_1m": 0.00
+    },
+
+    { "_section": "cursor — Anthropic native models" },
+
+    {
+      "id": "YOUR_CURSOR_HAIKU_ID",
+      "aliases": ["claude-haiku"],
+      "family": "claude-haiku",
+      "provider": "anthropic",
+      "harness": "cursor",
+      "tier": "small",
+      "effort_scale": "thinking_budget",
+      "effort_map": { "low": "0", "medium": "5000", "high": "10000" },
+      "input_cost_per_1m": 0.00,
+      "output_cost_per_1m": 0.00
+    },
+
+    { "_section": "cursor — xAI Grok (installed via model picker)" },
+
+    {
+      "id": "grok-4.6",
+      "aliases": ["grok-4", "grok"],
+      "family": "grok",
+      "provider": "xai",
+      "harness": "cursor",
+      "tier": "frontier",
+      "effort_scale": "reasoning_effort",
+      "effort_map": { "low": "low", "medium": "medium", "high": "high" },
+      "input_cost_per_1m": 2.00,
+      "output_cost_per_1m": 6.00
     }
   ]
 }
