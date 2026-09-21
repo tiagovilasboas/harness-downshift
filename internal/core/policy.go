@@ -30,7 +30,8 @@ func (c Complexity) Tier() Tier {
 type Decision struct {
 	Complexity   Complexity
 	Tier         Tier
-	Effort       Effort // recommended reasoning intensity for this tier
+	Effort       Effort           // recommended reasoning intensity for this tier
+	Intent       EscalationIntent // named task intent (Trivial/Normal/Review/Preserved)
 	Harness      string
 	Model        Model // the model we recommend for this task
 	CurrentModel Model // the model currently in effect (may be zero if unknown)
@@ -84,7 +85,7 @@ func Route(prompt, harness, currentModelID string, r ...Resolver) Decision {
 	recommended := resolveModel(harness, tier, res)
 	verdict, savings, current := compareToCurrentModel(harness, currentModelID, recommended, res)
 
-	return Decision{
+	d := Decision{
 		Complexity:   cls,
 		Tier:         tier,
 		Effort:       effort,
@@ -95,6 +96,8 @@ func Route(prompt, harness, currentModelID string, r ...Resolver) Decision {
 		Savings:      savings,
 		Confident:    Classify(prompt).Confident,
 	}
+	d.Intent = IntentFor(prompt, Classify(prompt), d, res)
+	return d
 }
 
 // classifyTask scores the prompt and returns the target tier and complexity.
@@ -135,20 +138,31 @@ func compareToCurrentModel(harness, currentModelID string, recommended Model, r 
 }
 
 // Summary renders a one-line, human-readable decision (the gearbox readout).
+// When the escalation intent differs from the raw complexity label, it is
+// included so operators can see when a code review was escalated to ReviewIntent
+// rather than treated as a generic Complex construction task.
 func (d Decision) Summary() string {
+	intentSuffix := ""
+	// Show intent only when it adds information not already in the complexity label.
+	if d.Intent == ReviewIntent {
+		intentSuffix = " [review]"
+	} else if d.Intent == PreservedIntent {
+		intentSuffix = " [preserved]"
+	}
+
 	switch d.Verdict {
 	case VerdictDownshift:
-		return fmt.Sprintf("%s task → downshift to %s (~%.0f%% cheaper)",
-			d.Complexity, d.Model.ID, d.Savings*100)
+		return fmt.Sprintf("%s task%s → downshift to %s (~%.0f%% cheaper)",
+			d.Complexity, intentSuffix, d.Model.ID, d.Savings*100)
 	case VerdictUpshift:
-		return fmt.Sprintf("%s task → upshift to %s (needs more torque)",
-			d.Complexity, d.Model.ID)
+		return fmt.Sprintf("%s task%s → upshift to %s (needs more torque)",
+			d.Complexity, intentSuffix, d.Model.ID)
 	case VerdictOK:
-		return fmt.Sprintf("%s task → %s (right gear, no change)",
-			d.Complexity, d.Model.ID)
+		return fmt.Sprintf("%s task%s → %s (right gear, no change)",
+			d.Complexity, intentSuffix, d.Model.ID)
 	default:
-		return fmt.Sprintf("%s task → use %s (%s tier)",
-			d.Complexity, d.Model.ID, d.Tier)
+		return fmt.Sprintf("%s task%s → use %s (%s tier)",
+			d.Complexity, intentSuffix, d.Model.ID, d.Tier)
 	}
 }
 
