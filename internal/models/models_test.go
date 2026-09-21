@@ -6,6 +6,7 @@ package models_test
 
 import (
 	"bytes"
+	"os"
 	"strings"
 	"testing"
 
@@ -113,5 +114,30 @@ func TestPull_NoKeys(t *testing.T) {
 	rc := models.Pull(cat, &out, &errOut)
 	if rc != 0 {
 		t.Errorf("Pull() with no keys returned rc=%d, want 0", rc)
+	}
+}
+
+// --- catalogSource when user override exists ---
+
+func TestList_ShowsOverrideSourceWhenPresent(t *testing.T) {
+	// Create a temp home with an override file so catalogSource returns the
+	// user-override path instead of "embedded (default)".
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	dir := home + "/.harness-downshift"
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	// Write a minimal valid catalog override.
+	minimal := `{"version":"1","entries":[]}`
+	if err := os.WriteFile(dir+"/catalog.json", []byte(minimal), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	// Load uses the real HOME so it picks up the override catalog.
+	overrideCat := catalog.Load()
+	var buf bytes.Buffer
+	models.List(overrideCat, &buf)
+	if !strings.Contains(buf.String(), "user override") {
+		t.Errorf("List output should show 'user override' source; got:\n%s", buf.String())
 	}
 }
