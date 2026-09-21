@@ -72,11 +72,12 @@ func Handle(ev Event, r ...core.Resolver) (Output, string) {
 	}
 	decision := core.Route(subPrompt, harnessID, currentModel, res)
 
-	if !decision.ShouldRewriteModel() {
+	plan := decision.Plan(core.HarnessCapabilities{CanRewriteModel: true})
+	if !plan.RewriteModel {
 		return allow(), ""
 	}
 
-	ti["model"] = decision.Model.ID
+	ti["model"] = plan.Model.ID
 	updated, err := json.Marshal(ti)
 	if err != nil {
 		return allow(), ""

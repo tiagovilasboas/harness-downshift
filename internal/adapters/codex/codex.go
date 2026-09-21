@@ -81,7 +81,8 @@ func Handle(ev Event, r ...core.Resolver) (Output, string) {
 	// selected model already matches, rewrite the spawn so the child receives
 	// the effort associated with this task (for example, terra/medium rather
 	// than inheriting terra/low from its parent).
-	if !decision.ShouldApplyEffort() {
+	plan := decision.Plan(core.HarnessCapabilities{CanRewriteModel: true, CanApplyEffort: true})
+	if !plan.ApplyEffort {
 		return allow(), ""
 	}
 
@@ -93,7 +94,7 @@ func Handle(ev Event, r ...core.Resolver) (Output, string) {
 		effortValue = res.EffortFor(harnessID, decision.Model.ID, decision.Effort)
 	}
 
-	targetModel := decision.Model.ID
+	targetModel := plan.Model.ID
 	// A user who explicitly selected a frontier model (for example Astra for an
 	// exceptional investigation) must not be silently moved to the default
 	// frontier model. Keep the current model when it already has the right tier.
