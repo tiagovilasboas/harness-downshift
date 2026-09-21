@@ -55,10 +55,15 @@ var Catalog = map[string]map[Tier]Model{
 		TierMid:      {ID: "claude-sonnet-4.6", Tier: TierMid, InputM: 3.00, OutputM: 15.00, Harness: "cursor"},
 		TierFrontier: {ID: "claude-opus-4.8", Tier: TierFrontier, InputM: 15.00, OutputM: 75.00, Harness: "cursor"},
 	},
+	// Codex model ids as accepted by the CLI / Responses API (Sep 2026).
+	// gpt-5.6-luna is the lowest cost/latency reasoning model; gpt-5.6-terra
+	// is the balanced tier; gpt-5.3-codex is the coding-tuned frontier model
+	// (supports low/medium/high/xhigh reasoning effort). See
+	// developers.openai.com/codex/models and .../api/docs/guides/reasoning.
 	"codex": {
-		TierSmall:    {ID: "gpt-4o-mini", Tier: TierSmall, InputM: 0.15, OutputM: 0.60, Harness: "codex"},
-		TierMid:      {ID: "gpt-4o", Tier: TierMid, InputM: 2.50, OutputM: 10.00, Harness: "codex"},
-		TierFrontier: {ID: "o3", Tier: TierFrontier, InputM: 10.00, OutputM: 40.00, Harness: "codex"},
+		TierSmall:    {ID: "gpt-5.6-luna", Tier: TierSmall, InputM: 0.15, OutputM: 0.60, Harness: "codex"},
+		TierMid:      {ID: "gpt-5.6-terra", Tier: TierMid, InputM: 1.25, OutputM: 5.00, Harness: "codex"},
+		TierFrontier: {ID: "gpt-5.3-codex", Tier: TierFrontier, InputM: 10.00, OutputM: 40.00, Harness: "codex"},
 	},
 }
 

@@ -13,7 +13,7 @@ prices for work a cheap model does just as well.**
 the cheap model. Hard work gets the frontier model's torque. You stop burning
 budget on the straights and keep the power for the curves.
 
-Works with Claude Code today. Cursor, Codex, and any harness with subagents next.
+Works with Claude Code, Cursor, and Codex today. Any harness with subagents next.
 
 **Keywords:** Claude Code subagent cost · LLM model routing · agent harness ·
 cost optimization · Claude Code hooks · Cursor subagents · Codex model selection
@@ -152,6 +152,51 @@ hook to `.cursor/hooks.json` (project level) or `~/.cursor/hooks.json` (global):
 The `matcher: "Task"` scopes the hook to subagent spawns only. Cursor watches
 the config and reloads it on save.
 
+## Install (Codex)
+
+Codex spawns subagents through a reserved `spawn_agent` tool under
+`multi_agent_v2`. You can't put a model on the provider-visible call, but a
+`PreToolUse` hook can inject the model **and** `reasoning_effort` into the tool
+input before the child starts — which is exactly where `downshift` runs.
+
+Enable the feature flags in `config.toml`:
+
+```toml
+[features]
+codex_hooks = true
+
+[features.multi_agent_v2]
+enabled = true
+```
+
+Register the hook in `.codex/hooks.json` (project) or `~/.codex/hooks.json`
+(global). The matcher covers both the `Agent` and namespaced `spawn_agent`
+tool names:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "(^Agent$|spawn_agent$)",
+        "hooks": [
+          { "type": "command", "command": "downshift codex" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+On Codex, downshift routes **two axes at once**: the model tier and the
+reasoning effort (`low` for trivial work, up to `high` for the frontier tier).
+A trivial subagent drops from `gpt-5.3-codex` at high effort to `gpt-5.6-luna`
+at low effort — cheap on both counts.
+
+> Codex's `multi_agent_v2` spawn schema is still evolving. downshift preserves
+> the reserved fields and fails open, but pin the exact Codex build you deploy
+> and keep an acceptance test on a real spawn.
+
 ---
 
 ## Why a hook, and why only subagents
@@ -174,7 +219,8 @@ That's the one place model selection is genuinely controllable from the outside
 |---|---|---|---|
 | **Claude Code** | ✅ Task tool | `PreToolUse` hook → `updatedInput.model` | ✅ shipped |
 | **Cursor** | ✅ Task tool | `preToolUse` hook → `updated_input.model` | ✅ shipped |
-| **Codex** | ✅ | spawn-time `--model` | 🔜 next |
+| **Codex** | ✅ `spawn_agent` (multi_agent_v2) | `PreToolUse` hook → `updatedInput.model` + `reasoning_effort` | ✅ shipped |
+| Grok CLI | ✅ parallel subagents | hook format under review | 🔜 next |
 | Kiro (single-thread) | ❌ no subagents | — | not applicable |
 | Claude.ai / ChatGPT web | ❌ closed | — | not possible |
 
@@ -290,10 +336,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
 
 ## Status
 
-Early. The Claude Code adapter works and is tested end-to-end. Cursor and Codex
-adapters are next. The classifier will keep getting tuned against real subagent
-prompts — issues and PRs with prompts it gets wrong are the most useful
-contribution.
+Early but real. The Claude Code, Cursor, and Codex adapters all work and are
+tested end-to-end. Grok CLI is next. The classifier will keep getting tuned
+against real subagent prompts — issues and PRs with prompts it gets wrong are
+the most useful contribution.
 
 ## License
 

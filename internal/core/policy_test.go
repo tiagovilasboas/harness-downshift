@@ -54,13 +54,13 @@ func TestRoute_UnknownCurrentModel(t *testing.T) {
 }
 
 func TestRoute_Codex(t *testing.T) {
-	// Trivial task on codex frontier → downshift to gpt-4o-mini.
-	d := Route("fix a typo", "codex", "o3")
+	// Trivial task on codex frontier → downshift to the cheapest tier.
+	d := Route("fix a typo", "codex", "gpt-5.3-codex")
 	if d.Verdict != VerdictDownshift {
 		t.Fatalf("verdict = %s, want DOWNSHIFT", d.Verdict)
 	}
-	if d.Model.ID != "gpt-4o-mini" {
-		t.Errorf("recommended = %s, want gpt-4o-mini", d.Model.ID)
+	if d.Model.ID != "gpt-5.6-luna" {
+		t.Errorf("recommended = %s, want gpt-5.6-luna", d.Model.ID)
 	}
 }
 
