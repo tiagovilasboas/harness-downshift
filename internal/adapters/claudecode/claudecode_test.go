@@ -1,15 +1,26 @@
 // Copyright (c) 2026 Tiago de Carvalho Vilas Boas.
 // SPDX-License-Identifier: BUSL-1.1
+// Commercial use requires a licence — see LICENSE for terms.
 
-package claudecode
+package claudecode_test
 
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/tiagovilasboas/harness-downshift/internal/adapters/claudecode"
+	"github.com/tiagovilasboas/harness-downshift/internal/catalog"
+	"github.com/tiagovilasboas/harness-downshift/internal/core"
 )
 
-// decodeUpdated pulls the updatedInput back into a map for assertions.
-func decodeUpdated(t *testing.T, out Output) map[string]any {
+// cat is the shared test resolver — same embedded catalog the binary uses.
+var cat = catalog.Load()
+
+func catID(tier core.Tier) string {
+	return cat.ModelFor("claude-code", tier).ID
+}
+
+func decodeUpdated(t *testing.T, out claudecode.Output) map[string]any {
 	t.Helper()
 	if out.HookSpecificOutput == nil || out.HookSpecificOutput.UpdatedInput == nil {
 		return nil
@@ -22,18 +33,17 @@ func decodeUpdated(t *testing.T, out Output) map[string]any {
 }
 
 func TestHandle_DownshiftsTrivialSubagent(t *testing.T) {
-	ev := Event{
-		HookEventName: "PreToolUse",
-		ToolName:      "Task",
-		Model:         "claude-opus-4-8",
+	frontierID := catID(core.TierFrontier)
+	ev := claudecode.Event{
+		ToolName: "Task",
+		Model:    frontierID,
 		ToolInput: json.RawMessage(`{
 			"description": "cleanup",
 			"prompt": "rename the userId variable to userIdentifier",
-			"model": "claude-opus-4-8"
+			"model": "` + frontierID + `"
 		}`),
 	}
-
-	out, note := Handle(ev)
+	out, note := claudecode.Handle(ev, cat)
 	if note == "" {
 		t.Fatal("expected a downshift note, got none")
 	}
@@ -41,12 +51,12 @@ func TestHandle_DownshiftsTrivialSubagent(t *testing.T) {
 	if m == nil {
 		t.Fatal("expected updatedInput, got none")
 	}
-	if m["model"] != "claude-haiku-4" {
-		t.Errorf("model = %v, want claude-haiku-4", m["model"])
+	wantID := catID(core.TierSmall)
+	if m["model"] != wantID {
+		t.Errorf("model = %v, want %s (small tier)", m["model"], wantID)
 	}
-	// Other fields preserved.
 	if m["prompt"] == nil || m["description"] == nil {
-		t.Error("expected prompt and description preserved in updatedInput")
+		t.Error("prompt and description must be preserved in updatedInput")
 	}
 	if out.HookSpecificOutput.PermissionDecision != "allow" {
 		t.Errorf("permissionDecision = %s, want allow", out.HookSpecificOutput.PermissionDecision)
@@ -54,50 +64,52 @@ func TestHandle_DownshiftsTrivialSubagent(t *testing.T) {
 }
 
 func TestHandle_UpshiftsComplexSubagent(t *testing.T) {
-	ev := Event{
+	smallID := catID(core.TierSmall)
+	ev := claudecode.Event{
 		ToolName: "Task",
-		Model:    "claude-haiku-4",
+		Model:    smallID,
 		ToolInput: json.RawMessage(`{
 			"prompt": "rearchitect the payment flow across services",
-			"model": "claude-haiku-4"
+			"model": "` + smallID + `"
 		}`),
 	}
-	out, note := Handle(ev)
+	out, note := claudecode.Handle(ev, cat)
 	if note == "" {
 		t.Fatal("expected an upshift note, got none")
 	}
 	m := decodeUpdated(t, out)
-	if m["model"] != "claude-opus-4-8" {
-		t.Errorf("model = %v, want claude-opus-4-8", m["model"])
+	wantID := catID(core.TierFrontier)
+	if m["model"] != wantID {
+		t.Errorf("model = %v, want %s (frontier tier)", m["model"], wantID)
 	}
 }
 
 func TestHandle_NoChangeWhenAlreadyRightGear(t *testing.T) {
-	ev := Event{
+	midID := catID(core.TierMid)
+	ev := claudecode.Event{
 		ToolName: "Task",
-		Model:    "claude-sonnet-4-6",
+		Model:    midID,
 		ToolInput: json.RawMessage(`{
 			"prompt": "implement the CSV export feature",
-			"model": "claude-sonnet-4-6"
+			"model": "` + midID + `"
 		}`),
 	}
-	out, note := Handle(ev)
+	out, note := claudecode.Handle(ev, cat)
 	if note != "" {
 		t.Errorf("expected no change note, got %q", note)
 	}
-	// Should be a plain allow with no updatedInput.
 	if out.HookSpecificOutput.UpdatedInput != nil {
-		t.Error("expected no updatedInput when gear is already right")
+		t.Error("must not rewrite input when gear is already right")
 	}
 }
 
 func TestHandle_IgnoresNonTaskTools(t *testing.T) {
-	ev := Event{
+	ev := claudecode.Event{
 		ToolName:  "Bash",
-		Model:     "claude-opus-4-8",
+		Model:     catID(core.TierFrontier),
 		ToolInput: json.RawMessage(`{"command": "rm -rf /tmp/x"}`),
 	}
-	out, note := Handle(ev)
+	out, note := claudecode.Handle(ev, cat)
 	if note != "" {
 		t.Errorf("expected no note for non-Task tool, got %q", note)
 	}
@@ -107,32 +119,47 @@ func TestHandle_IgnoresNonTaskTools(t *testing.T) {
 }
 
 func TestHandle_FallsBackToSessionModel(t *testing.T) {
-	// Task input has no model → use the session model from the event.
-	ev := Event{
+	frontierID := catID(core.TierFrontier)
+	ev := claudecode.Event{
 		ToolName: "Task",
-		Model:    "claude-opus-4-8",
-		ToolInput: json.RawMessage(`{
-			"prompt": "fix a typo in the readme"
-		}`),
+		Model:    frontierID, // session model, no model on tool input
+		ToolInput: json.RawMessage(`{"prompt": "fix a typo in the readme"}`),
 	}
-	out, note := Handle(ev)
+	out, note := claudecode.Handle(ev, cat)
 	if note == "" {
 		t.Fatal("expected downshift using session model as current")
 	}
 	m := decodeUpdated(t, out)
-	if m["model"] != "claude-haiku-4" {
-		t.Errorf("model = %v, want claude-haiku-4", m["model"])
+	wantID := catID(core.TierSmall)
+	if m["model"] != wantID {
+		t.Errorf("model = %v, want %s", m["model"], wantID)
 	}
 }
 
 func TestHandle_AgentToolAlias(t *testing.T) {
-	ev := Event{
-		ToolName: "Agent", // some variants use "Agent" instead of "Task"
-		Model:    "claude-opus-4-8",
-		ToolInput: json.RawMessage(`{"prompt": "rename the variable", "model": "claude-opus-4-8"}`),
+	frontierID := catID(core.TierFrontier)
+	ev := claudecode.Event{
+		ToolName: "Agent",
+		Model:    frontierID,
+		ToolInput: json.RawMessage(`{"prompt": "rename the variable", "model": "` + frontierID + `"}`),
 	}
-	_, note := Handle(ev)
+	_, note := claudecode.Handle(ev, cat)
 	if note == "" {
 		t.Error("expected Agent tool to be treated as a subagent spawn")
+	}
+}
+
+func TestHandle_MalformedInputFailsOpen(t *testing.T) {
+	ev := claudecode.Event{
+		ToolName:  "Task",
+		Model:     catID(core.TierFrontier),
+		ToolInput: json.RawMessage(`{not valid`),
+	}
+	out, note := claudecode.Handle(ev, cat)
+	if note != "" {
+		t.Errorf("malformed input must fail-open, got note %q", note)
+	}
+	if out.HookSpecificOutput.PermissionDecision != "allow" {
+		t.Error("malformed input must return allow")
 	}
 }

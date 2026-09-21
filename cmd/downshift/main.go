@@ -24,6 +24,7 @@ import (
 	"github.com/tiagovilasboas/harness-downshift/internal/adapters/claudecode"
 	"github.com/tiagovilasboas/harness-downshift/internal/adapters/codex"
 	"github.com/tiagovilasboas/harness-downshift/internal/adapters/cursor"
+	"github.com/tiagovilasboas/harness-downshift/internal/catalog"
 	"github.com/tiagovilasboas/harness-downshift/internal/core"
 )
 
@@ -34,27 +35,32 @@ func main() {
 		os.Exit(2)
 	}
 
+	// Load the effective catalog once at startup — embedded JSON with optional
+	// user override at ~/.harness-downshift/catalog.json. Fail-open: if the
+	// user file is invalid, the embedded catalog is used automatically.
+	cat := catalog.Load()
+
 	switch args[0] {
 	case "claude-code":
 		os.Exit(runHookAdapter(
 			func(b []byte) (claudecode.Event, error) { var e claudecode.Event; return e, json.Unmarshal(b, &e) },
-			func(e claudecode.Event) (any, string) { return claudecode.Handle(e) },
+			func(e claudecode.Event) (any, string) { return claudecode.Handle(e, cat) },
 			printAllow,
 		))
 	case "cursor":
 		os.Exit(runHookAdapter(
 			func(b []byte) (cursor.Event, error) { var e cursor.Event; return e, json.Unmarshal(b, &e) },
-			func(e cursor.Event) (any, string) { return cursor.Handle(e) },
+			func(e cursor.Event) (any, string) { return cursor.Handle(e, cat) },
 			printCursorAllow,
 		))
 	case "codex":
 		os.Exit(runHookAdapter(
 			func(b []byte) (codex.Event, error) { var e codex.Event; return e, json.Unmarshal(b, &e) },
-			func(e codex.Event) (any, string) { return codex.Handle(e) },
+			func(e codex.Event) (any, string) { return codex.Handle(e, cat) },
 			printCodexAllow,
 		))
 	case "try":
-		os.Exit(runTry(args[1:]))
+		os.Exit(runTry(cat, args[1:]))
 	case "-h", "--help", "help":
 		usage()
 		os.Exit(0)
@@ -99,7 +105,7 @@ func runHookAdapter[E any](
 }
 
 // runTry classifies a prompt from the command line for quick testing.
-func runTry(args []string) int {
+func runTry(cat core.Resolver, args []string) int {
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "usage: downshift try \"<task prompt>\" [harness] [current-model]")
 		return 2
@@ -119,7 +125,7 @@ func runTry(args []string) int {
 	if harness == "grok" {
 		cls := core.Classify(prompt)
 		tier := cls.Complexity.Tier()
-		effort := core.EffortFor(tier) // Wave 4 promotes this; for now mirrors grokEffortFor
+		effort := core.EffortFor(tier)
 		fmt.Printf("Task:       %s\n", prompt)
 		fmt.Printf("Complexity: %s\n", cls.Complexity)
 		fmt.Printf("Needs tier: %s\n", tier)
@@ -128,7 +134,7 @@ func runTry(args []string) int {
 		return 0
 	}
 
-	d := core.Route(prompt, harness, current)
+	d := core.Route(prompt, harness, current, cat)
 	fmt.Printf("Task:       %s\n", prompt)
 	fmt.Printf("Complexity: %s\n", d.Complexity)
 	fmt.Printf("Needs tier: %s\n", d.Tier)

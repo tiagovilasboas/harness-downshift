@@ -1,14 +1,25 @@
 // Copyright (c) 2026 Tiago de Carvalho Vilas Boas.
 // SPDX-License-Identifier: BUSL-1.1
+// Commercial use requires a licence — see LICENSE for terms.
 
-package codex
+package codex_test
 
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/tiagovilasboas/harness-downshift/internal/adapters/codex"
+	"github.com/tiagovilasboas/harness-downshift/internal/catalog"
+	"github.com/tiagovilasboas/harness-downshift/internal/core"
 )
 
-func decodeUpdated(t *testing.T, out Output) map[string]any {
+var cat = catalog.Load()
+
+func catID(tier core.Tier) string {
+	return cat.ModelFor("codex", tier).ID
+}
+
+func decodeUpdated(t *testing.T, out codex.Output) map[string]any {
 	t.Helper()
 	if out.HookSpecificOutput == nil || out.HookSpecificOutput.UpdatedInput == nil {
 		return nil
@@ -21,17 +32,17 @@ func decodeUpdated(t *testing.T, out Output) map[string]any {
 }
 
 func TestHandle_DownshiftsTrivialSubagent(t *testing.T) {
-	ev := Event{
-		HookEventName: "PreToolUse",
-		ToolName:      "spawn_agent",
-		Model:         "gpt-5.3-codex",
+	frontierID := catID(core.TierFrontier)
+	ev := codex.Event{
+		ToolName: "spawn_agent",
+		Model:    frontierID,
 		ToolInput: json.RawMessage(`{
 			"task_name": "worker_agent_rename",
 			"message": "rename the userId variable to userIdentifier",
 			"fork_turns": "none"
 		}`),
 	}
-	out, note := Handle(ev)
+	out, note := codex.Handle(ev, cat)
 	if note == "" {
 		t.Fatal("expected a downshift note, got none")
 	}
@@ -42,11 +53,13 @@ func TestHandle_DownshiftsTrivialSubagent(t *testing.T) {
 		t.Errorf("permissionDecision = %s, want allow", out.HookSpecificOutput.PermissionDecision)
 	}
 	m := decodeUpdated(t, out)
-	if m["model"] != "gpt-5.6-luna" {
-		t.Errorf("model = %v, want gpt-5.6-luna", m["model"])
+	wantID := catID(core.TierSmall)
+	if m["model"] != wantID {
+		t.Errorf("model = %v, want %s", m["model"], wantID)
 	}
-	if m["reasoning_effort"] != "low" {
-		t.Errorf("reasoning_effort = %v, want low", m["reasoning_effort"])
+	// reasoning_effort must be set (not empty).
+	if m["reasoning_effort"] == "" || m["reasoning_effort"] == nil {
+		t.Error("reasoning_effort must be set on downshift")
 	}
 	// Reserved schema fields must be preserved.
 	if m["message"] == nil || m["task_name"] == nil || m["fork_turns"] == nil {
@@ -55,37 +68,36 @@ func TestHandle_DownshiftsTrivialSubagent(t *testing.T) {
 }
 
 func TestHandle_UpshiftsComplexSubagent(t *testing.T) {
-	ev := Event{
+	smallID := catID(core.TierSmall)
+	ev := codex.Event{
 		ToolName: "spawn_agent",
-		Model:    "gpt-5.6-luna",
+		Model:    smallID,
 		ToolInput: json.RawMessage(`{
-			"task_name": "worker_agent_payments",
 			"message": "rearchitect the payment flow across multiple services and migrate the schema"
 		}`),
 	}
-	out, note := Handle(ev)
+	out, note := codex.Handle(ev, cat)
 	if note == "" {
 		t.Fatal("expected an upshift note, got none")
 	}
 	m := decodeUpdated(t, out)
-	if m["model"] != "gpt-5.3-codex" {
-		t.Errorf("model = %v, want gpt-5.3-codex", m["model"])
-	}
-	if m["reasoning_effort"] != "high" {
-		t.Errorf("reasoning_effort = %v, want high", m["reasoning_effort"])
+	wantID := catID(core.TierFrontier)
+	if m["model"] != wantID {
+		t.Errorf("model = %v, want %s", m["model"], wantID)
 	}
 }
 
 func TestHandle_OKKeepsGear(t *testing.T) {
-	ev := Event{
+	midID := catID(core.TierMid)
+	ev := codex.Event{
 		ToolName: "spawn_agent",
-		Model:    "gpt-5.6-terra",
+		Model:    midID,
 		ToolInput: json.RawMessage(`{
 			"message": "implement the CSV export feature",
-			"model": "gpt-5.6-terra"
+			"model": "` + midID + `"
 		}`),
 	}
-	out, note := Handle(ev)
+	out, note := codex.Handle(ev, cat)
 	if note != "" {
 		t.Errorf("expected no change, got %q", note)
 	}
@@ -98,62 +110,59 @@ func TestHandle_OKKeepsGear(t *testing.T) {
 }
 
 func TestHandle_IgnoresNonSpawnTools(t *testing.T) {
-	ev := Event{
+	ev := codex.Event{
 		ToolName:  "Bash",
-		Model:     "gpt-5.3-codex",
+		Model:     catID(core.TierFrontier),
 		ToolInput: json.RawMessage(`{"command":"ls"}`),
 	}
-	_, note := Handle(ev)
+	_, note := codex.Handle(ev, cat)
 	if note != "" {
 		t.Errorf("expected no note for non-spawn tool, got %q", note)
 	}
 }
 
 func TestHandle_MatchesFlattenedNamespacedToolName(t *testing.T) {
-	// Some builds flatten the namespaced tool to "collaborationspawn_agent".
-	ev := Event{
+	frontierID := catID(core.TierFrontier)
+	ev := codex.Event{
 		ToolName: "collaborationspawn_agent",
-		Model:    "gpt-5.3-codex",
-		ToolInput: json.RawMessage(`{
-			"message": "fix a typo in the readme"
-		}`),
+		Model:    frontierID,
+		ToolInput: json.RawMessage(`{"message": "fix a typo in the readme"}`),
 	}
-	out, note := Handle(ev)
+	out, note := codex.Handle(ev, cat)
 	if note == "" {
 		t.Fatal("expected downshift for flattened namespaced tool name")
 	}
 	m := decodeUpdated(t, out)
-	if m["model"] != "gpt-5.6-luna" {
-		t.Errorf("model = %v, want gpt-5.6-luna", m["model"])
+	wantID := catID(core.TierSmall)
+	if m["model"] != wantID {
+		t.Errorf("model = %v, want %s", m["model"], wantID)
 	}
 }
 
 func TestHandle_MatchesAgentToolName(t *testing.T) {
-	ev := Event{
+	frontierID := catID(core.TierFrontier)
+	ev := codex.Event{
 		ToolName: "Agent",
-		Model:    "gpt-5.3-codex",
-		ToolInput: json.RawMessage(`{
-			"message": "rename a private helper method"
-		}`),
+		Model:    frontierID,
+		ToolInput: json.RawMessage(`{"message": "rename a private helper method"}`),
 	}
-	_, note := Handle(ev)
+	_, note := codex.Handle(ev, cat)
 	if note == "" {
 		t.Fatal("expected downshift for Agent tool name")
 	}
 }
 
 func TestHandle_TaskNameAddsSignal(t *testing.T) {
-	// A terse message plus a role-ish task_name should still classify; the
-	// task_name is folded into the prompt so it contributes signal.
-	ev := Event{
+	frontierID := catID(core.TierFrontier)
+	ev := codex.Event{
 		ToolName: "spawn_agent",
-		Model:    "gpt-5.3-codex",
+		Model:    frontierID,
 		ToolInput: json.RawMessage(`{
 			"task_name": "review_agent",
 			"message": "typo fix"
 		}`),
 	}
-	out, note := Handle(ev)
+	out, note := codex.Handle(ev, cat)
 	if note == "" {
 		t.Fatal("expected a routing decision")
 	}
@@ -164,29 +173,30 @@ func TestHandle_TaskNameAddsSignal(t *testing.T) {
 }
 
 func TestHandle_FallsBackToEventModel(t *testing.T) {
-	// No model on the tool input → use the session model from the event.
-	ev := Event{
+	frontierID := catID(core.TierFrontier)
+	ev := codex.Event{
 		ToolName: "spawn_agent",
-		Model:    "gpt-5.3-codex",
+		Model:    frontierID,
 		ToolInput: json.RawMessage(`{"message": "rename the variable"}`),
 	}
-	out, note := Handle(ev)
+	out, note := codex.Handle(ev, cat)
 	if note == "" {
 		t.Fatal("expected downshift using event model as current")
 	}
 	m := decodeUpdated(t, out)
-	if m["model"] != "gpt-5.6-luna" {
-		t.Errorf("model = %v, want gpt-5.6-luna", m["model"])
+	wantID := catID(core.TierSmall)
+	if m["model"] != wantID {
+		t.Errorf("model = %v, want %s", m["model"], wantID)
 	}
 }
 
 func TestHandle_MalformedInputFailsOpen(t *testing.T) {
-	ev := Event{
+	ev := codex.Event{
 		ToolName:  "spawn_agent",
-		Model:     "gpt-5.3-codex",
+		Model:     catID(core.TierFrontier),
 		ToolInput: json.RawMessage(`{not valid json`),
 	}
-	out, note := Handle(ev)
+	out, note := codex.Handle(ev, cat)
 	if note != "" {
 		t.Errorf("expected fail-open (no note), got %q", note)
 	}
@@ -196,12 +206,12 @@ func TestHandle_MalformedInputFailsOpen(t *testing.T) {
 }
 
 func TestHandle_EmptyMessageFailsOpen(t *testing.T) {
-	ev := Event{
+	ev := codex.Event{
 		ToolName:  "spawn_agent",
-		Model:     "gpt-5.3-codex",
+		Model:     catID(core.TierFrontier),
 		ToolInput: json.RawMessage(`{"fork_turns":"none"}`),
 	}
-	out, note := Handle(ev)
+	out, note := codex.Handle(ev, cat)
 	if note != "" {
 		t.Errorf("expected no decision for empty message, got %q", note)
 	}

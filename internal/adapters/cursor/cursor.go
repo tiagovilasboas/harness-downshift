@@ -3,20 +3,10 @@
 // Commercial use requires a licence — see LICENSE for terms.
 
 // Package cursor adapts core routing decisions to Cursor's hook protocol.
-//
-// Cursor exposes a preToolUse hook whose output supports updated_input — the
-// same interception point Claude Code uses. When the agent is about to spawn a
-// subagent via the Task tool, we rewrite the tool input's model before the
-// child starts.
-//
-// Note on subagentStart: Cursor also has a dedicated subagentStart hook, but
-// its output only supports permission (allow/deny) — it cannot rewrite the
-// model. So model control has to go through preToolUse + updated_input.
-//
-// Field names differ from Claude Code: Cursor uses snake_case JSON
-// (hook_event_name, tool_name, tool_input, updated_input), while Claude Code
-// uses a mix. This adapter speaks Cursor's dialect; the core decision is the
-// same.
+// Cursor exposes a preToolUse hook whose output supports updated_input —
+// the same interception point Claude Code uses. When the agent is about to
+// spawn a subagent via the Task tool, we rewrite the tool input's model
+// before the child starts.
 package cursor
 
 import (
@@ -30,27 +20,24 @@ import (
 const harnessID = "cursor"
 
 // Event is the JSON Cursor sends on stdin for a preToolUse hook.
-// Only the fields we need are decoded.
 type Event struct {
 	HookEventName string          `json:"hook_event_name"`
 	ToolName      string          `json:"tool_name"`
 	ToolInput     json.RawMessage `json:"tool_input"`
-	Model         string          `json:"model"`    // legacy model slug of the composer
-	ModelID       string          `json:"model_id"` // structured model id, when available
+	Model         string          `json:"model"`
+	ModelID       string          `json:"model_id"`
 }
 
 // Output is the JSON we print on stdout to steer Cursor's preToolUse.
 type Output struct {
-	Permission   string          `json:"permission"`              // "allow"
-	UpdatedInput json.RawMessage `json:"updated_input,omitempty"` // rewritten Task input
-	AgentMessage string          `json:"agent_message,omitempty"` // note fed back to the agent
+	Permission   string          `json:"permission"`
+	UpdatedInput json.RawMessage `json:"updated_input,omitempty"`
+	AgentMessage string          `json:"agent_message,omitempty"`
 }
 
-// Handle processes a preToolUse event. When the tool is Task (a subagent
-// spawn), it classifies the subagent's task and, if a different model fits,
-// rewrites the tool input's model via updated_input. Returns the Output to
-// print and a human-readable note (empty when nothing changed).
-func Handle(ev Event) (Output, string) {
+// Handle processes a preToolUse event using the catalog.Resolver injected by
+// main. Falls back to the legacy core.Catalog when r is nil (tests).
+func Handle(ev Event, r ...core.Resolver) (Output, string) {
 	if !isTaskTool(ev.ToolName) {
 		return allow(), ""
 	}
@@ -60,8 +47,6 @@ func Handle(ev Event) (Output, string) {
 		return allow(), ""
 	}
 
-	// The subagent's own task text drives its complexity.
-	// Cursor's Task input commonly carries "task" and/or "prompt".
 	subPrompt := hookutil.StringField(ti, "task")
 	if subPrompt == "" {
 		subPrompt = hookutil.StringField(ti, "prompt")
@@ -73,8 +58,6 @@ func Handle(ev Event) (Output, string) {
 		return allow(), ""
 	}
 
-	// Current model: the one on the Task input, else the structured model_id,
-	// else the legacy model slug.
 	currentModel := hookutil.StringField(ti, "model")
 	if currentModel == "" {
 		currentModel = ev.ModelID
@@ -83,7 +66,11 @@ func Handle(ev Event) (Output, string) {
 		currentModel = ev.Model
 	}
 
-	decision := core.Route(subPrompt, harnessID, currentModel)
+	var res core.Resolver
+	if len(r) > 0 {
+		res = r[0]
+	}
+	decision := core.Route(subPrompt, harnessID, currentModel, res)
 
 	if decision.Verdict != core.VerdictDownshift && decision.Verdict != core.VerdictUpshift {
 		return allow(), ""
@@ -95,21 +82,17 @@ func Handle(ev Event) (Output, string) {
 		return allow(), ""
 	}
 
-	out := Output{
+	return Output{
 		Permission:   "allow",
 		UpdatedInput: updated,
 		AgentMessage: "downshift: " + decision.Summary(),
-	}
-	return out, decision.Summary()
+	}, decision.Summary()
 }
 
-// isTaskTool reports whether the tool name is a subagent-spawning tool.
-// Cursor's preToolUse matcher uses "Task".
 func isTaskTool(name string) bool {
 	return strings.EqualFold(name, "task")
 }
 
-// allow returns a no-op preToolUse output that lets the tool run unchanged.
 func allow() Output {
 	return Output{Permission: "allow"}
 }
