@@ -44,18 +44,21 @@ func main() {
 	switch args[0] {
 	case "claude-code":
 		os.Exit(runHookAdapter(
+			os.Stdin,
 			func(b []byte) (claudecode.Event, error) { var e claudecode.Event; return e, json.Unmarshal(b, &e) },
 			func(e claudecode.Event) (any, string) { return claudecode.Handle(e, cat) },
 			printAllow,
 		))
 	case "cursor":
 		os.Exit(runHookAdapter(
+			os.Stdin,
 			func(b []byte) (cursor.Event, error) { var e cursor.Event; return e, json.Unmarshal(b, &e) },
 			func(e cursor.Event) (any, string) { return cursor.Handle(e, cat) },
 			printCursorAllow,
 		))
 	case "codex":
 		os.Exit(runHookAdapter(
+			os.Stdin,
 			func(b []byte) (codex.Event, error) { var e codex.Event; return e, json.Unmarshal(b, &e) },
 			func(e codex.Event) (any, string) { return codex.Handle(e, cat) },
 			printCodexAllow,
@@ -75,18 +78,20 @@ func main() {
 }
 
 // runHookAdapter is the single hook-runner template shared by all harness
-// adapters. It reads a JSON event from stdin, calls handle, and encodes the
-// result to stdout. Any failure (read error, parse error, encode error) prints
-// the harness-specific fail-open response and exits 0 — the spawn must never
-// be blocked by a router error.
+// adapters. It reads a JSON event from in, calls handle, and encodes the
+// result to stdout. Any failure prints the harness-specific fail-open
+// response and exits 0 — the spawn must never be blocked by a router error.
 //
 // Type parameter E is the harness-specific event struct.
+// in is the event source; production callers pass os.Stdin, tests pass a
+// bytes.Reader so the function can be instrumented by go test -cover.
 func runHookAdapter[E any](
+	in io.Reader,
 	parse func([]byte) (E, error),
 	handle func(E) (any, string),
 	failOpen func(),
 ) int {
-	data, err := io.ReadAll(os.Stdin)
+	data, err := io.ReadAll(in)
 	if err != nil {
 		failOpen()
 		return 0
