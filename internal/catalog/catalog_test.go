@@ -100,10 +100,10 @@ func TestLookupByID_FamilyMatchHaiku(t *testing.T) {
 
 func TestLookupByID_FamilyMatchCodexFrontier(t *testing.T) {
 	c := Load()
-	// gpt-5.3-codex-v2 starts with family "gpt-5.3-codex" → frontier
-	m, ok := c.LookupByID("codex", "gpt-5.3-codex-v2")
+	// gpt-6-astra-v2 starts with family "gpt-6-astra" → frontier
+	m, ok := c.LookupByID("codex", "gpt-6-astra-v2")
 	if !ok {
-		t.Fatal("gpt-5.3-codex-v2 should match via family")
+		t.Fatal("gpt-6-astra-v2 should match via family")
 	}
 	if m.Tier != core.TierFrontier {
 		t.Errorf("family match tier = %s, want frontier", m.Tier)
@@ -173,10 +173,10 @@ func TestLookupByID_OpenRouterHaikuSmall(t *testing.T) {
 
 func TestLookupByID_OpenRouterCodex(t *testing.T) {
 	c := Load()
-	// "openai/gpt-5.3-codex" → strip → exact match
-	m, ok := c.LookupByID("codex", "openai/gpt-5.3-codex")
+	// "openai/gpt-6-astra" → strip → exact match
+	m, ok := c.LookupByID("codex", "openai/gpt-6-astra")
 	if !ok {
-		t.Fatal("openai/gpt-5.3-codex should match after normalisation")
+		t.Fatal("openai/gpt-6-astra should match after normalisation")
 	}
 	if m.Tier != core.TierFrontier {
 		t.Errorf("tier = %s, want frontier", m.Tier)
