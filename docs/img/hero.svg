@@ -1,50 +1,65 @@
-<svg width="820" height="440" viewBox="0 0 820 440" xmlns="http://www.w3.org/2000/svg" font-family="'SF Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace">
-  <rect width="820" height="440" rx="12" fill="#0f1117"/>
+<svg width="860" height="460" viewBox="0 0 860 460" xmlns="http://www.w3.org/2000/svg" font-family="'SF Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace">
+  <rect width="860" height="460" rx="12" fill="#0f1117"/>
 
+  <!-- Header -->
   <text x="40" y="52" fill="#e6e9ef" font-size="26" font-weight="700">harness-downshift</text>
   <text x="40" y="80" fill="#8b93a7" font-size="14">Right-sized models for every subagent task.</text>
   <text x="40" y="100" fill="#8b93a7" font-size="14">Downshift on the straights, power through the curves.</text>
 
-  <line x1="40" y1="124" x2="780" y2="124" stroke="#242835" stroke-width="1"/>
+  <line x1="40" y1="124" x2="820" y2="124" stroke="#242835" stroke-width="1"/>
 
-  <text x="40" y="156" fill="#5b6373" font-size="12">TASK COMPLEXITY</text>
-  <text x="560" y="156" fill="#5b6373" font-size="12">GEAR (MODEL)</text>
+  <!-- Column headers -->
+  <text x="40"  y="156" fill="#5b6373" font-size="11" letter-spacing="1">COMPLEXITY</text>
+  <text x="168" y="156" fill="#5b6373" font-size="11" letter-spacing="1">EXAMPLES</text>
+  <text x="450" y="156" fill="#5b6373" font-size="11" letter-spacing="1">MODEL (CLAUDE-CODE)</text>
+  <text x="670" y="156" fill="#5b6373" font-size="11" letter-spacing="1">EFFORT</text>
+  <text x="740" y="156" fill="#5b6373" font-size="11" letter-spacing="1">$/1M IN</text>
 
-  <g font-size="14">
-    <rect x="40" y="172" width="700" height="42" rx="8" fill="#12331f"/>
-    <text x="58" y="198" fill="#7ee2a8" font-weight="700">TRIVIAL</text>
-    <text x="150" y="198" fill="#9aa4b8">rename var · fix typo · git commit</text>
-    <text x="560" y="198" fill="#7ee2a8" font-weight="700">haiku</text>
-    <text x="640" y="198" fill="#5b6373">$0.80 / 1M</text>
-    <text x="726" y="198" fill="#7ee2a8" text-anchor="end">▼</text>
+  <!-- TRIVIAL row -->
+  <g font-size="13">
+    <rect x="40" y="168" width="780" height="44" rx="7" fill="#12331f"/>
+    <text x="56"  y="196" fill="#7ee2a8" font-weight="700">TRIVIAL</text>
+    <text x="168" y="196" fill="#9aa4b8">rename · fix typo · git commit · format</text>
+    <text x="450" y="196" fill="#7ee2a8" font-weight="600">claude-haiku-4</text>
+    <text x="670" y="196" fill="#7ee2a8">low</text>
+    <text x="740" y="196" fill="#5b6373">$0.80</text>
+    <text x="816" y="196" fill="#7ee2a8" text-anchor="end" font-size="16">▼</text>
   </g>
 
-  <g font-size="14">
-    <rect x="40" y="224" width="700" height="42" rx="8" fill="#1a2740"/>
-    <text x="58" y="250" fill="#7fb0ff" font-weight="700">SIMPLE</text>
-    <text x="150" y="250" fill="#9aa4b8">add field · fix bug · one function</text>
-    <text x="560" y="250" fill="#7fb0ff" font-weight="700">sonnet</text>
-    <text x="640" y="250" fill="#5b6373">$3 / 1M</text>
+  <!-- SIMPLE row -->
+  <g font-size="13">
+    <rect x="40" y="222" width="780" height="44" rx="7" fill="#172135"/>
+    <text x="56"  y="250" fill="#7fb0ff" font-weight="700">SIMPLE</text>
+    <text x="168" y="250" fill="#9aa4b8">add field · fix bug · write function</text>
+    <text x="450" y="250" fill="#7fb0ff" font-weight="600">claude-sonnet-4-6</text>
+    <text x="670" y="250" fill="#7fb0ff">medium</text>
+    <text x="740" y="250" fill="#5b6373">$3.00</text>
   </g>
 
-  <g font-size="14">
-    <rect x="40" y="276" width="700" height="42" rx="8" fill="#1a2740"/>
-    <text x="58" y="302" fill="#7fb0ff" font-weight="700">MEDIUM</text>
-    <text x="150" y="302" fill="#9aa4b8">refactor module · feature across files</text>
-    <text x="560" y="302" fill="#7fb0ff" font-weight="700">sonnet</text>
-    <text x="640" y="302" fill="#5b6373">$3 / 1M</text>
+  <!-- MEDIUM row -->
+  <g font-size="13">
+    <rect x="40" y="276" width="780" height="44" rx="7" fill="#172135"/>
+    <text x="56"  y="304" fill="#7fb0ff" font-weight="700">MEDIUM</text>
+    <text x="168" y="304" fill="#9aa4b8">refactor module · feature across files · debug</text>
+    <text x="450" y="304" fill="#7fb0ff" font-weight="600">claude-sonnet-4-6</text>
+    <text x="670" y="304" fill="#7fb0ff">medium</text>
+    <text x="740" y="304" fill="#5b6373">$3.00</text>
   </g>
 
-  <g font-size="14">
-    <rect x="40" y="328" width="700" height="42" rx="8" fill="#3a1f2b"/>
-    <text x="58" y="354" fill="#ff9db2" font-weight="700">COMPLEX</text>
-    <text x="150" y="354" fill="#9aa4b8">rearchitect · migration · race condition</text>
-    <text x="560" y="354" fill="#ff9db2" font-weight="700">opus</text>
-    <text x="640" y="354" fill="#5b6373">$15 / 1M</text>
-    <text x="726" y="354" fill="#ff9db2" text-anchor="end">▲</text>
+  <!-- COMPLEX row -->
+  <g font-size="13">
+    <rect x="40" y="330" width="780" height="44" rx="7" fill="#3a1f2b"/>
+    <text x="56"  y="358" fill="#ff9db2" font-weight="700">COMPLEX</text>
+    <text x="168" y="358" fill="#9aa4b8">rearchitect · migration · race condition · RFC</text>
+    <text x="450" y="358" fill="#ff9db2" font-weight="600">claude-opus-4-8</text>
+    <text x="670" y="358" fill="#ff9db2">high</text>
+    <text x="740" y="358" fill="#5b6373">$15.00</text>
+    <text x="816" y="358" fill="#ff9db2" text-anchor="end" font-size="16">▲</text>
   </g>
 
-  <line x1="40" y1="392" x2="780" y2="392" stroke="#242835" stroke-width="1"/>
-  <text x="40" y="418" fill="#7ee2a8" font-size="13" font-weight="700">~95% cheaper</text>
-  <text x="150" y="418" fill="#8b93a7" font-size="13">on trivial subagents — the same work, the right gear.</text>
+  <line x1="40" y1="396" x2="820" y2="396" stroke="#242835" stroke-width="1"/>
+
+  <!-- Footer -->
+  <text x="40"  y="430" fill="#7ee2a8" font-size="13" font-weight="700">~95% cheaper</text>
+  <text x="156" y="430" fill="#8b93a7" font-size="13">on trivial subagents · model IDs live in catalog.json · update without recompiling</text>
 </svg>

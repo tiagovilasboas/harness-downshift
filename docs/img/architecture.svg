@@ -1,0 +1,90 @@
+<svg width="820" height="560" viewBox="0 0 820 560" xmlns="http://www.w3.org/2000/svg" font-family="'SF Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace">
+  <rect width="820" height="560" rx="12" fill="#0f1117"/>
+
+  <!-- Title -->
+  <text x="40" y="48" fill="#e6e9ef" font-size="20" font-weight="700">Package architecture</text>
+  <text x="40" y="70" fill="#5b6373" font-size="12">Dependency direction is one-way. core never imports catalog.</text>
+  <line x1="40" y1="88" x2="780" y2="88" stroke="#242835" stroke-width="1"/>
+
+  <!-- ── core ── -->
+  <rect x="310" y="108" width="200" height="64" rx="8" fill="#12331f" stroke="#3d7a56" stroke-width="1.5"/>
+  <text x="410" y="136" fill="#7ee2a8" font-size="13" font-weight="700" text-anchor="middle">internal/core</text>
+  <text x="410" y="156" fill="#5b6373" font-size="11" text-anchor="middle">Tier · Effort · Complexity · Route</text>
+  <text x="410" y="170" fill="#5b6373" font-size="11" text-anchor="middle">Resolver interface</text>
+
+  <!-- ── catalog ── -->
+  <rect x="310" y="234" width="200" height="64" rx="8" fill="#1a2740" stroke="#3d5a8a" stroke-width="1.5"/>
+  <text x="410" y="262" fill="#7fb0ff" font-size="13" font-weight="700" text-anchor="middle">internal/catalog</text>
+  <text x="410" y="278" fill="#5b6373" font-size="11" text-anchor="middle">catalog.json (embedded)</text>
+  <text x="410" y="292" fill="#5b6373" font-size="11" text-anchor="middle">~/.harness-downshift override</text>
+
+  <!-- catalog → core arrow -->
+  <line x1="410" y1="234" x2="410" y2="172" stroke="#3d5a8a" stroke-width="1.5" marker-end="url(#arr-blue)"/>
+  <text x="418" y="208" fill="#5b6373" font-size="10">implements Resolver</text>
+
+  <!-- ── hookutil ── -->
+  <rect x="560" y="234" width="200" height="48" rx="8" fill="#211d30" stroke="#6b5ba8" stroke-width="1.5"/>
+  <text x="660" y="258" fill="#b8a4ff" font-size="13" font-weight="700" text-anchor="middle">internal/hookutil</text>
+  <text x="660" y="274" fill="#5b6373" font-size="11" text-anchor="middle">StringField</text>
+
+  <!-- ── adapters ── -->
+  <rect x="60" y="366" width="180" height="56" rx="8" fill="#2a1e16" stroke="#7a5a30" stroke-width="1.5"/>
+  <text x="150" y="391" fill="#ffc680" font-size="13" font-weight="700" text-anchor="middle">claudecode</text>
+  <text x="150" y="407" fill="#5b6373" font-size="11" text-anchor="middle">PreToolUse · updatedInput</text>
+  <text x="150" y="419" fill="#5b6373" font-size="11" text-anchor="middle">claude-code harness</text>
+
+  <rect x="270" y="366" width="180" height="56" rx="8" fill="#2a1e16" stroke="#7a5a30" stroke-width="1.5"/>
+  <text x="360" y="391" fill="#ffc680" font-size="13" font-weight="700" text-anchor="middle">cursor</text>
+  <text x="360" y="407" fill="#5b6373" font-size="11" text-anchor="middle">preToolUse · updated_input</text>
+  <text x="360" y="419" fill="#5b6373" font-size="11" text-anchor="middle">Cursor harness</text>
+
+  <rect x="480" y="366" width="180" height="56" rx="8" fill="#2a1e16" stroke="#7a5a30" stroke-width="1.5"/>
+  <text x="570" y="391" fill="#ffc680" font-size="13" font-weight="700" text-anchor="middle">codex</text>
+  <text x="570" y="407" fill="#5b6373" font-size="11" text-anchor="middle">PreToolUse · updatedInput</text>
+  <text x="570" y="419" fill="#5b6373" font-size="11" text-anchor="middle">Codex multi_agent_v2</text>
+
+  <!-- adapters → core -->
+  <line x1="150" y1="366" x2="345" y2="172" stroke="#7a5a30" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arr-orange)"/>
+  <line x1="360" y1="366" x2="400" y2="172" stroke="#7a5a30" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arr-orange)"/>
+  <line x1="570" y1="366" x2="470" y2="172" stroke="#7a5a30" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arr-orange)"/>
+
+  <!-- adapters → hookutil -->
+  <line x1="150" y1="366" x2="570" y2="282" stroke="#6b5ba8" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arr-purple)"/>
+  <line x1="570" y1="366" x2="640" y2="282" stroke="#6b5ba8" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arr-purple)"/>
+
+  <!-- ── models ── -->
+  <rect x="310" y="366" width="0" height="0" rx="8"/>
+  <!-- (models is cmd-level, shown under cmd) -->
+
+  <!-- ── cmd/downshift ── -->
+  <rect x="280" y="488" width="260" height="48" rx="8" fill="#1e1e2e" stroke="#555570" stroke-width="1.5"/>
+  <text x="410" y="510" fill="#cdd6f4" font-size="13" font-weight="700" text-anchor="middle">cmd/downshift + models</text>
+  <text x="410" y="526" fill="#5b6373" font-size="11" text-anchor="middle">hook runners · try · models list/check/pull</text>
+
+  <!-- cmd → adapters -->
+  <line x1="350" y1="488" x2="200" y2="422" stroke="#555570" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arr-grey)"/>
+  <line x1="390" y1="488" x2="360" y2="422" stroke="#555570" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arr-grey)"/>
+  <line x1="430" y1="488" x2="520" y2="422" stroke="#555570" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arr-grey)"/>
+  <!-- cmd → catalog -->
+  <line x1="410" y1="488" x2="410" y2="298" stroke="#3d5a8a" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arr-blue)"/>
+
+  <!-- ── Legend ── -->
+  <text x="40" y="400" fill="#5b6373" font-size="11">───  solid: implements / required</text>
+  <text x="40" y="418" fill="#5b6373" font-size="11">- - -  dashed: imports</text>
+
+  <!-- ── Arrow markers ── -->
+  <defs>
+    <marker id="arr-blue"   markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#3d5a8a"/>
+    </marker>
+    <marker id="arr-orange" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#7a5a30"/>
+    </marker>
+    <marker id="arr-purple" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#6b5ba8"/>
+    </marker>
+    <marker id="arr-grey"   markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#555570"/>
+    </marker>
+  </defs>
+</svg>
