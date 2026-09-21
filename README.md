@@ -317,7 +317,7 @@ That's the one place model selection is genuinely controllable from the outside
 
 | Harness | Subagents | Control mechanism | Status |
 |---|---|---|---|
-| **Claude Code** | ✅ Task tool | `PreToolUse` hook → `updatedInput.model` | ✅ shipped |
+| **Claude Code** | ✅ Task tool (paid plans only) | `PreToolUse` hook → `updatedInput.model` | ✅ shipped |
 | **Cursor** | ✅ Task tool | `preToolUse` hook → `updated_input.model` | ✅ shipped |
 | **Codex** | ✅ `spawn_agent` (multi_agent_v2) | `PreToolUse` hook → `updatedInput.model` + `reasoning_effort` | ✅ shipped |
 | **Grok CLI** | ✅ `spawn_subagent` | **config**, not hook — `[subagents.roles/models]` in `config.toml` | ⚙️ config-based (see below) |
@@ -326,6 +326,50 @@ That's the one place model selection is genuinely controllable from the outside
 
 The classifier and policy are harness-agnostic — one brain. Each adapter
 translates the decision into that harness's own mechanism.
+
+---
+
+## Plan compatibility — read before installing
+
+**Not every plan supports subagent model routing.** This is a hard constraint
+at the harness level, not a bug in harness-downshift.
+
+### Claude Code
+
+| Plan | Subagents exist? | Model routing works? |
+|---|---|---|
+| Free | ❌ No real subagents | — |
+| Pro / Max / Teams | ✅ Yes | ✅ Yes — PreToolUse + updatedInput honored |
+| API (direct) | ✅ Yes | ✅ Yes |
+
+Claude Code free runs in a sandboxed container without network egress — `go install` will fail. The subagent feature itself only exists on paid plans.
+
+### Cursor
+
+| Plan / pricing | Subagents exist? | Model routing works? |
+|---|---|---|
+| Free | ✅ Limited | ⚠️ `updated_input.model` silently ignored (known issue) |
+| Pro (request-based / legacy) | ✅ Yes | ⚠️ `model` field in Task only accepts `"fast"` — override silently dropped |
+| Pro / Ultra (usage-based) | ✅ Yes | ✅ Works on plans with expanded subagent model selection |
+
+Cursor's `preToolUse` hook fires and harness-downshift runs, but the `model` rewrite is silently discarded on legacy and free plans. [Tracked on Cursor forum](https://forum.cursor.com/t/pretooluse-hook-updated-input-is-silently-ignored-for-the-task-tool/151985). On usage-based Pro/Ultra plans where subagent model selection is expanded, routing works.
+
+### Codex
+
+| Plan | Subagents exist? | Model routing works? |
+|---|---|---|
+| Any (with `multi_agent_v2` enabled) | ✅ Yes | ✅ Yes — PreToolUse + updatedInput honored |
+
+Requires `[features] multi_agent_v2` and `codex_hooks = true` in `config.toml`.
+
+### Summary
+
+harness-downshift is most effective on:
+- **Claude Code Pro / Max / Teams / API** — full model routing via hook
+- **Codex** with multi_agent_v2 enabled — full model + reasoning_effort routing
+- **Cursor Pro/Ultra** on usage-based plans with expanded subagent model selection
+
+On free plans or legacy Cursor pricing, the hook runs but model rewrites may be silently ignored by the harness. The tool fails open — the subagent still spawns, just without the model change.
 
 ---
 
