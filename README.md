@@ -1,8 +1,12 @@
 # harness-downshift
 
-> **Cut Claude Code subagent costs** by routing every subagent to the
-> right-sized model for its task. A deterministic model router that runs as a
-> hook — no extra tokens, no LLM in the loop, single Go binary.
+[![Build](https://github.com/tiagovilasboas/harness-downshift/actions/workflows/ci.yml/badge.svg)](https://github.com/tiagovilasboas/harness-downshift/actions/workflows/ci.yml)
+[![License: BUSL-1.1](https://img.shields.io/badge/license-BUSL--1.1-orange.svg)](LICENSE)
+[![Go 1.27](https://img.shields.io/badge/go-1.27-00ADD8.svg)](https://go.dev)
+
+> **Cut subagent costs** by routing every subagent to the right-sized model
+> for its task. A deterministic model router that runs as a hook — no extra
+> tokens, no LLM in the loop, single Go binary.
 
 ![harness-downshift](docs/img/hero.svg)
 
@@ -250,6 +254,35 @@ to a role's reasoning effort in config once.
 
 ---
 
+## Architecture
+
+![Architecture](docs/img/architecture.svg)
+
+Dependency direction is one-way: `catalog → core`, never reversed. Model IDs
+and costs live in `catalog.json` — no Go recompile needed to add or update a
+model.
+
+### Updating or overriding the catalog
+
+Place a file at `~/.harness-downshift/catalog.json` to override the embedded
+default. Run `downshift models list` to see which catalog is active.
+
+```bash
+# See the current effective catalog
+downshift models list
+
+# Discover new models from provider APIs (reads API keys from env)
+ANTHROPIC_API_KEY=sk-... downshift models check
+
+# Write new models to your override catalog (tier=unknown, assign manually)
+ANTHROPIC_API_KEY=sk-... downshift models pull
+```
+
+The schema is in [`catalog.sample.json`](catalog.sample.json). Any field not
+present in your override falls through to the embedded default.
+
+---
+
 ## Why a hook, and why only subagents
 
 The model of your **current turn** is loaded when the session starts — no
@@ -351,10 +384,14 @@ our assumptions.
 - **New harness adapter** — implement `internal/adapters/<harness>/` following
   the Claude Code adapter as a template. The `core` package is harness-agnostic;
   an adapter only translates a `core.Decision` into that harness's mechanism.
-- **Model catalog updates** — prices and model ids change. Corrections to
-  `internal/core/models.go` (with a source) are always welcome.
+  See [REFACTOR.md](REFACTOR.md) for the step-by-step guide.
+- **Model catalog updates** — prices and model IDs live in
+  `internal/catalog/catalog.json`. Edit the JSON (with a source link in the
+  PR description) — no Go changes needed. Or run `downshift models pull` to
+  discover new models automatically.
 - **Classifier signals** — new keyword/pattern signals for a complexity class,
-  with a test case that proves the improvement.
+  with a table-driven test case in `classifier_edge_test.go` that proves the
+  improvement.
 
 **Ground rules:**
 
@@ -387,11 +424,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
 
 ## Status
 
-Early but real. The Claude Code, Cursor, and Codex adapters all work as
-`PreToolUse` hooks and are tested end-to-end. Grok CLI is supported through
-config (its hook API is allow/deny only — see the Grok section for why). The
-classifier will keep getting tuned against real subagent prompts — issues and
-PRs with prompts it gets wrong are the most useful contribution.
+Hook adapters for Claude Code, Cursor, and Codex are shipped, tested, and
+end-to-end verified. Grok CLI is supported through config (its hook API is
+allow/deny only — see the Grok section for why). The catalog is decoupled from
+Go source — update model data by editing JSON, no recompile needed. The
+classifier is tested against 40+ documented prompts, including edge cases and
+known tie-break scenarios.
 
 ## License
 
