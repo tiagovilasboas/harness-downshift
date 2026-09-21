@@ -6,6 +6,11 @@
 // renders aggregated stats. All data stays on the user's machine — nothing
 // is sent to any external service.
 //
+// Privacy note: prompt contents are never stored. Each event contains only
+// routing metadata (harness, complexity class, model IDs, verdict, and a
+// normalised savings fraction). This makes the event log safe for corporate
+// environments where task prompts may contain sensitive information.
+//
 // Event log location: ~/.harness-downshift/events.jsonl
 // Each line is one JSON object written atomically (append + sync).
 package telemetry
@@ -24,18 +29,18 @@ import (
 )
 
 // Event is one routing decision persisted to the event log.
+// Prompt text is intentionally excluded — only routing metadata is stored.
 type Event struct {
-	Timestamp        string  `json:"timestamp"`          // RFC3339
-	Harness          string  `json:"harness"`            // e.g. "claude-code"
-	Complexity       string  `json:"complexity"`         // TRIVIAL|SIMPLE|MEDIUM|COMPLEX
-	FromModel        string  `json:"from"`               // model that would have run
-	ToModel          string  `json:"to"`                 // model that will run
-	Verdict          string  `json:"verdict"`            // DOWNSHIFT|UPSHIFT|OK|UNKNOWN
-	EstimatedSavings float64 `json:"estimated_savings"`  // fraction 0–1 (0 = no saving)
+	Timestamp        string  `json:"timestamp"`         // RFC3339
+	Harness          string  `json:"harness"`           // e.g. "claude-code"
+	Complexity       string  `json:"complexity"`        // TRIVIAL|SIMPLE|MEDIUM|COMPLEX
+	FromModel        string  `json:"from"`              // model that would have run
+	ToModel          string  `json:"to"`                // model that will run
+	Verdict          string  `json:"verdict"`           // DOWNSHIFT|UPSHIFT|OK|UNKNOWN
+	EstimatedSavings float64 `json:"estimated_savings"` // normalised fraction 0–1
 }
 
-// FromDecision builds an Event from a core.Decision. from is the model that
-// was active before routing; to is the model we routed to.
+// FromDecision builds an Event from a core.Decision.
 func FromDecision(d core.Decision) Event {
 	from := d.CurrentModel.ID
 	if from == "" {
@@ -97,32 +102,22 @@ type Stats struct {
 	OK          int
 	Unknown     int
 
-	// EstimatedBaselineCost is what the sessions would have cost without routing,
-	// computed as if every subagent ran on the from-model at a synthetic
-	// token volume (1 000 input + 200 output per event).
-	EstimatedBaselineCost float64
-	EstimatedRoutedCost   float64
+	// NormBaseline and NormRouted are normalised cost units (1 unit = 1 baseline event).
+	// They do not represent real dollars. Multiply by CostPerUnit to convert.
+	NormBaseline float64
+	NormRouted   float64
 
 	// ByComplexity counts decisions per complexity class.
 	ByComplexity map[string]int
 }
 
-// Saved returns the absolute dollar saving and the fraction.
-func (s Stats) Saved() (float64, float64) {
-	saved := s.EstimatedBaselineCost - s.EstimatedRoutedCost
-	if s.EstimatedBaselineCost <= 0 {
+// NormSaved returns normalised savings: absolute units saved and fraction.
+func (s Stats) NormSaved() (float64, float64) {
+	saved := s.NormBaseline - s.NormRouted
+	if s.NormBaseline <= 0 {
 		return 0, 0
 	}
-	return saved, saved / s.EstimatedBaselineCost
-}
-
-// syntheticTokenCost estimates the cost of one event given a model's per-1M
-// rates. We assume 1 000 input tokens + 200 output tokens per subagent call —
-// a rough but consistent proxy for comparing baseline vs routed cost.
-func syntheticTokenCost(inputPerM, outputPerM float64) float64 {
-	const inputTokens = 1_000
-	const outputTokens = 200
-	return (inputPerM/1e6)*inputTokens + (outputPerM/1e6)*outputTokens
+	return saved, saved / s.NormBaseline
 }
 
 // ReadEvents reads all events from the default event log. Returns an empty
@@ -154,11 +149,28 @@ func parseEvents(r io.Reader) ([]Event, error) {
 		}
 		var ev Event
 		if err := json.Unmarshal(line, &ev); err != nil {
-			continue // skip malformed lines
+			continue // skip malformed lines — never block on corrupted log
 		}
 		events = append(events, ev)
 	}
 	return events, sc.Err()
+}
+
+// FilterByDays returns events within the last n days.
+// When n <= 0, all events are returned.
+func FilterByDays(events []Event, days int) []Event {
+	if days <= 0 {
+		return events
+	}
+	cutoff := time.Now().UTC().Add(-time.Duration(days) * 24 * time.Hour)
+	var out []Event
+	for _, ev := range events {
+		t, err := time.Parse(time.RFC3339, ev.Timestamp)
+		if err != nil || t.After(cutoff) {
+			out = append(out, ev)
+		}
+	}
+	return out
 }
 
 // Aggregate computes Stats from a slice of events.
@@ -177,43 +189,33 @@ func Aggregate(events []Event) Stats {
 		default:
 			s.Unknown++
 		}
-		// Synthetic per-event cost estimate using the savings fraction.
-		// baseline = routed / (1 - savings)
+		// Normalised cost: baseline = 1.0 per event; routed = 1 - savings.
+		// This is a dimensionless proxy. Multiply by --cost-per-unit to get dollars.
+		s.NormBaseline += 1.0
 		if ev.EstimatedSavings > 0 && ev.EstimatedSavings < 1 {
-			routedFraction := 1 - ev.EstimatedSavings
-			// We don't have raw token costs here, so use the savings ratio
-			// to back-calculate baseline from a normalised unit cost of 1.
-			s.EstimatedBaselineCost += 1.0
-			s.EstimatedRoutedCost += routedFraction
+			s.NormRouted += 1 - ev.EstimatedSavings
 		} else {
-			s.EstimatedBaselineCost += 1.0
-			s.EstimatedRoutedCost += 1.0
+			s.NormRouted += 1.0
 		}
 	}
 	return s
 }
 
+// StatsOptions controls PrintStats output.
+type StatsOptions struct {
+	Days        int     // time window; <= 0 means all time
+	CostPerUnit float64 // USD per normalised unit; 0 means show units only
+}
+
 // PrintStats writes a human-readable stats summary to w.
-func PrintStats(events []Event, days int, w io.Writer) {
-	// Filter by time window.
-	cutoff := time.Now().UTC().Add(-time.Duration(days) * 24 * time.Hour)
-	var filtered []Event
-	for _, ev := range events {
-		t, err := time.Parse(time.RFC3339, ev.Timestamp)
-		if err != nil || t.After(cutoff) {
-			filtered = append(filtered, ev)
-		}
-	}
-
+func PrintStats(events []Event, opts StatsOptions, w io.Writer) {
+	filtered := FilterByDays(events, opts.Days)
 	s := Aggregate(filtered)
-	saved, savedFrac := s.Saved()
+	normSaved, normFrac := s.NormSaved()
 
-	label := fmt.Sprintf("Last %d days", days)
-	if days <= 0 {
+	label := fmt.Sprintf("Last %d days", opts.Days)
+	if opts.Days <= 0 {
 		label = "All time"
-		filtered = events
-		s = Aggregate(filtered)
-		saved, savedFrac = s.Saved()
 	}
 
 	fmt.Fprintf(w, "%s\n", label)
@@ -231,13 +233,27 @@ func PrintStats(events []Event, days int, w io.Writer) {
 		fmt.Fprintf(w, "  %-8s            %8d  %5.1f%%\n", cls, n, pct(n, s.Total))
 	}
 	fmt.Fprintf(w, "\n")
-	if s.Total > 0 && s.EstimatedBaselineCost > 0 {
-		fmt.Fprintf(w, "Estimated baseline    %8.0f units\n", s.EstimatedBaselineCost)
-		fmt.Fprintf(w, "Estimated routed      %8.0f units\n", s.EstimatedRoutedCost)
-		fmt.Fprintf(w, "Estimated savings     %8.0f units  (%4.1f%%)\n", saved, savedFrac*100)
-		fmt.Fprintf(w, "\n")
-		fmt.Fprintf(w, "Note: 'units' = normalised cost per event (1 unit = baseline cost).\n")
-		fmt.Fprintf(w, "For dollar figures, run:  downshift stats --cost-per-unit=<USD>\n")
+
+	if s.Total > 0 {
+		if opts.CostPerUnit > 0 {
+			// Dollar mode: multiply normalised units by the user-supplied rate.
+			baseline := s.NormBaseline * opts.CostPerUnit
+			routed := s.NormRouted * opts.CostPerUnit
+			saved := normSaved * opts.CostPerUnit
+			fmt.Fprintf(w, "Estimated baseline    $%10.2f\n", baseline)
+			fmt.Fprintf(w, "Estimated routed      $%10.2f\n", routed)
+			fmt.Fprintf(w, "Estimated savings     $%10.2f  (%4.1f%%)\n", saved, normFrac*100)
+			fmt.Fprintf(w, "\n")
+			fmt.Fprintf(w, "Rate: $%.4f / unit  (--cost-per-unit=%.4f)\n", opts.CostPerUnit, opts.CostPerUnit)
+		} else {
+			// Unit mode: dimensionless proxy, no dollar claim.
+			fmt.Fprintf(w, "Normalised baseline   %8.0f units\n", s.NormBaseline)
+			fmt.Fprintf(w, "Normalised routed     %8.0f units\n", s.NormRouted)
+			fmt.Fprintf(w, "Normalised savings    %8.0f units  (%4.1f%%)\n", normSaved, normFrac*100)
+			fmt.Fprintf(w, "\n")
+			fmt.Fprintf(w, "Note: 1 unit = cost of one unrouted event. Not real dollars.\n")
+			fmt.Fprintf(w, "For dollar figures: downshift stats --cost-per-unit=<USD-per-unit>\n")
+		}
 	}
 	fmt.Fprintf(w, "─────────────────────────────────────\n")
 }

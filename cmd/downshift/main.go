@@ -186,17 +186,31 @@ func runModels(cat models.CatalogReader, args []string) int {
 }
 
 // runStats reads the local event log and prints a savings summary.
-// Usage: downshift stats [--days=N]  (default: last 30 days; 0 = all time)
+// Usage: downshift stats [--days=N] [--cost-per-unit=USD]
+//
+// --days=N           time window in days (default 30; 0 = all time)
+// --cost-per-unit=X  convert normalised units to dollars at rate X per unit
 func runStats(args []string) int {
-	days := 30
+	opts := telemetry.StatsOptions{Days: 30}
 	for _, arg := range args {
-		if len(arg) > 7 && arg[:7] == "--days=" {
-			n, err := strconv.Atoi(arg[7:])
-			if err != nil {
+		switch {
+		case len(arg) > 7 && arg[:7] == "--days=":
+			n, err := strconv.ParseFloat(arg[7:], 64)
+			if err != nil || n < 0 {
 				fmt.Fprintf(os.Stderr, "invalid --days value: %s\n", arg[7:])
 				return 2
 			}
-			days = n
+			opts.Days = int(n)
+		case len(arg) > 16 && arg[:16] == "--cost-per-unit=":
+			v, err := strconv.ParseFloat(arg[16:], 64)
+			if err != nil || v < 0 {
+				fmt.Fprintf(os.Stderr, "invalid --cost-per-unit value: %s\n", arg[16:])
+				return 2
+			}
+			opts.CostPerUnit = v
+		default:
+			fmt.Fprintf(os.Stderr, "unknown flag: %s\n", arg)
+			return 2
 		}
 	}
 
@@ -209,7 +223,7 @@ func runStats(args []string) int {
 		fmt.Fprintln(os.Stderr, "no events recorded yet — run some subagent tasks first.")
 		return 0
 	}
-	telemetry.PrintStats(events, days, os.Stdout)
+	telemetry.PrintStats(events, opts, os.Stdout)
 	return 0
 }
 
@@ -264,6 +278,7 @@ Usage:
   downshift models check         Query provider APIs and report new/untiered models
   downshift models pull          Write ~/.harness-downshift/catalog.json from APIs
   downshift stats [--days=N]     Show routing decisions and estimated savings (default: 30 days)
+  downshift stats --cost-per-unit=<USD>   Convert normalised units to dollars
   downshift benchmark <file>     Run classifier against a labelled dataset; print confusion matrix
 
 Grok note:

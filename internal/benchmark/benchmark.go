@@ -3,8 +3,16 @@
 // Commercial use requires a licence — see LICENSE for terms.
 
 // Package benchmark evaluates the classifier against a hand-labelled task
-// dataset and reports a confusion matrix, accuracy, and the false-downshift
-// rate — the fraction of COMPLEX tasks that were mis-routed to a cheaper tier.
+// dataset and reports four KPIs aligned to the routing problem:
+//
+//   - Complexity accuracy — exact label match (TRIVIAL/SIMPLE/MEDIUM/COMPLEX)
+//   - Tier routing accuracy — what matters economically: did the task get the
+//     right model tier? SIMPLE→MID and MEDIUM→MID are both correct routing.
+//   - Unsafe downgrade rate — FRONTIER tasks sent to a cheaper tier; the
+//     safety-critical metric. A COMPLEX task on a weak model can produce wrong
+//     output worth far more in rework than the cost saved.
+//   - Wasteful over-routing rate — SMALL tasks sent to a dearer tier; wastes
+//     money but is safe.
 //
 // Dataset format (JSON):
 //
@@ -112,7 +120,7 @@ func Build(results []Result) Matrix {
 	return m
 }
 
-// Accuracy returns the fraction of correct predictions.
+// Accuracy returns the fraction of exact complexity-label matches.
 func Accuracy(results []Result) float64 {
 	if len(results) == 0 {
 		return 0
@@ -126,20 +134,84 @@ func Accuracy(results []Result) float64 {
 	return float64(correct) / float64(len(results))
 }
 
-// FalseDownshiftRate returns the fraction of COMPLEX tasks that were routed
-// to a cheaper tier (TRIVIAL, SIMPLE, or MEDIUM). This is the safety-critical
-// metric: routing a COMPLEX task to a weak model can produce wrong output.
-func FalseDownshiftRate(results []Result) (rate float64, count int, total int) {
+// TierAccuracy returns the fraction of tasks where the predicted complexity
+// maps to the correct model tier. This is the economically meaningful metric:
+// SIMPLE→MID and MEDIUM→MID are different complexity labels but identical
+// routing decisions, so both count as correct tier routing.
+func TierAccuracy(results []Result) float64 {
+	if len(results) == 0 {
+		return 0
+	}
+	correct := 0
 	for _, r := range results {
 		expected, ok := complexityFromString(r.Task.Label)
-		if !ok || expected != core.Complex {
+		if !ok {
+			continue
+		}
+		if expected.Tier() == r.Predicted.Tier() {
+			correct++
+		}
+	}
+	return float64(correct) / float64(len(results))
+}
+
+// UnsafeDowngradeRates returns the fraction of FRONTIER-tier tasks (COMPLEX)
+// mis-routed to MID or SMALL. These are the safety-critical failures.
+// Returns (toMID rate, toSMALL rate, count-to-mid, count-to-small, total).
+func UnsafeDowngradeRates(results []Result) (toMID, toSMALL float64, cntMID, cntSMALL, total int) {
+	for _, r := range results {
+		expected, ok := complexityFromString(r.Task.Label)
+		if !ok || expected.Tier() != core.TierFrontier {
 			continue
 		}
 		total++
-		if r.Predicted < core.Complex {
-			count++
+		switch r.Predicted.Tier() {
+		case core.TierMid:
+			cntMID++
+		case core.TierSmall:
+			cntSMALL++
 		}
 	}
+	if total == 0 {
+		return 0, 0, 0, 0, 0
+	}
+	return float64(cntMID) / float64(total),
+		float64(cntSMALL) / float64(total),
+		cntMID, cntSMALL, total
+}
+
+// WastefulOverRoutingRates returns the fraction of SMALL-tier tasks (TRIVIAL)
+// mis-routed to MID or FRONTIER. Wasteful but safe.
+// Returns (toMID rate, toFRONTIER rate, count-to-mid, count-to-frontier, total).
+func WastefulOverRoutingRates(results []Result) (toMID, toFrontier float64, cntMID, cntFrontier, total int) {
+	for _, r := range results {
+		expected, ok := complexityFromString(r.Task.Label)
+		if !ok || expected.Tier() != core.TierSmall {
+			continue
+		}
+		total++
+		switch r.Predicted.Tier() {
+		case core.TierMid:
+			cntMID++
+		case core.TierFrontier:
+			cntFrontier++
+		}
+	}
+	if total == 0 {
+		return 0, 0, 0, 0, 0
+	}
+	return float64(cntMID) / float64(total),
+		float64(cntFrontier) / float64(total),
+		cntMID, cntFrontier, total
+}
+
+// FalseDownshiftRate returns the fraction of COMPLEX tasks routed to any
+// cheaper tier. Kept for backward compatibility; prefer UnsafeDowngradeRates
+// for the split MID/SMALL breakdown.
+func FalseDownshiftRate(results []Result) (rate float64, count int, total int) {
+	_, _, cntMID, cntSMALL, tot := UnsafeDowngradeRates(results)
+	count = cntMID + cntSMALL
+	total = tot
 	if total == 0 {
 		return 0, 0, 0
 	}
@@ -147,18 +219,11 @@ func FalseDownshiftRate(results []Result) (rate float64, count int, total int) {
 }
 
 // OverRoutingRate returns the fraction of TRIVIAL tasks routed to a more
-// expensive tier. Over-routing wastes money but is safe.
+// expensive tier. Kept for backward compatibility.
 func OverRoutingRate(results []Result) (rate float64, count int, total int) {
-	for _, r := range results {
-		expected, ok := complexityFromString(r.Task.Label)
-		if !ok || expected != core.Trivial {
-			continue
-		}
-		total++
-		if r.Predicted > core.Trivial {
-			count++
-		}
-	}
+	_, _, cntMID, cntFrontier, tot := WastefulOverRoutingRates(results)
+	count = cntMID + cntFrontier
+	total = tot
 	if total == 0 {
 		return 0, 0, 0
 	}
@@ -171,28 +236,58 @@ var fullLabels = []string{"TRIVIAL", "SIMPLE", "MEDIUM", "COMPLEX"}
 // Print writes the full benchmark report to w.
 func Print(results []Result, m Matrix, w io.Writer) {
 	n := len(results)
-	acc := Accuracy(results)
-	fdRate, fdCount, fdTotal := FalseDownshiftRate(results)
-	orRate, orCount, orTotal := OverRoutingRate(results)
+	complexAcc := Accuracy(results)
+	tierAcc := TierAccuracy(results)
+
+	udMID, udSMALL, udCntMID, udCntSMALL, udTotal := UnsafeDowngradeRates(results)
+	worMID, worFrontier, worCntMID, worCntFrontier, worTotal := WastefulOverRoutingRates(results)
 
 	fmt.Fprintf(w, "Dataset: %d tasks\n\n", n)
-	fmt.Fprintf(w, "Accuracy          %6.1f%%\n", acc*100)
-	fmt.Fprintf(w, "Under-routing      %6.1f%%  (%d / %d COMPLEX mis-routed cheaper)\n",
-		fdRate*100, fdCount, fdTotal)
-	fmt.Fprintf(w, "Over-routing       %6.1f%%  (%d / %d TRIVIAL mis-routed dearer)\n",
-		orRate*100, orCount, orTotal)
+
+	// Four KPIs aligned to the routing problem.
+	fmt.Fprintf(w, "Complexity accuracy   %6.1f%%  (exact label match)\n", complexAcc*100)
+	fmt.Fprintf(w, "Tier routing accuracy %6.1f%%  (correct model tier — what matters economically)\n", tierAcc*100)
 	fmt.Fprintf(w, "\n")
 
-	// False downshift detail: which COMPLEX tasks went where.
-	fmt.Fprintf(w, "False downshift detail (COMPLEX → cheaper tier)\n")
-	for _, r := range results {
-		expected, ok := complexityFromString(r.Task.Label)
-		if !ok || expected != core.Complex || r.Correct {
-			continue
-		}
-		fmt.Fprintf(w, "  COMPLEX → %-7s  %q\n", r.Predicted.String(), truncate(r.Task.Prompt, 70))
+	fmt.Fprintf(w, "Unsafe downgrade (FRONTIER → cheaper tier):\n")
+	if udTotal == 0 {
+		fmt.Fprintf(w, "  No FRONTIER-tier tasks in dataset\n")
+	} else {
+		fmt.Fprintf(w, "  FRONTIER → MID      %6.1f%%  (%d / %d)\n", udMID*100, udCntMID, udTotal)
+		fmt.Fprintf(w, "  FRONTIER → SMALL    %6.1f%%  (%d / %d)\n", udSMALL*100, udCntSMALL, udTotal)
 	}
 	fmt.Fprintf(w, "\n")
+
+	fmt.Fprintf(w, "Wasteful over-routing (SMALL → dearer tier):\n")
+	if worTotal == 0 {
+		fmt.Fprintf(w, "  No SMALL-tier tasks in dataset\n")
+	} else {
+		fmt.Fprintf(w, "  SMALL → MID         %6.1f%%  (%d / %d)\n", worMID*100, worCntMID, worTotal)
+		fmt.Fprintf(w, "  SMALL → FRONTIER    %6.1f%%  (%d / %d)\n", worFrontier*100, worCntFrontier, worTotal)
+	}
+	fmt.Fprintf(w, "\n")
+
+	// Detail: which FRONTIER tasks were mis-routed (the safety failures).
+	hasMisrouted := false
+	for _, r := range results {
+		expected, ok := complexityFromString(r.Task.Label)
+		if ok && expected.Tier() == core.TierFrontier && r.Predicted.Tier() != core.TierFrontier {
+			hasMisrouted = true
+			break
+		}
+	}
+	if hasMisrouted {
+		fmt.Fprintf(w, "Unsafe downgrade detail (FRONTIER → cheaper tier)\n")
+		for _, r := range results {
+			expected, ok := complexityFromString(r.Task.Label)
+			if !ok || expected.Tier() != core.TierFrontier || r.Predicted.Tier() == core.TierFrontier {
+				continue
+			}
+			fmt.Fprintf(w, "  COMPLEX → %-7s  %q\n",
+				r.Predicted.String(), truncate(r.Task.Prompt, 70))
+		}
+		fmt.Fprintf(w, "\n")
+	}
 
 	// Confusion matrix.
 	fmt.Fprintf(w, "Confusion matrix\n\n")
@@ -209,6 +304,7 @@ func Print(results []Result, m Matrix, w io.Writer) {
 		fmt.Fprintf(w, "\n")
 	}
 	fmt.Fprintf(w, "\nT=TRIVIAL  S=SIMPLE  M=MEDIUM  C=COMPLEX\n")
+	fmt.Fprintf(w, "Tiers: TRIVIAL→SMALL  SIMPLE→MID  MEDIUM→MID  COMPLEX→FRONTIER\n")
 }
 
 func truncate(s string, n int) string {

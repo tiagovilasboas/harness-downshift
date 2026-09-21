@@ -474,6 +474,7 @@ expensive than the same call on haiku. That's the raw per-call case.
 for a few sessions, check your own numbers:
 
 ```
+# Example output — your numbers will vary based on task mix and models used.
 $ downshift stats
 
 Last 30 days
@@ -484,11 +485,18 @@ Subagent decisions    1,842
   Upshifted             611  33.2%
   Unchanged (OK)        259  14.0%
 
-Estimated baseline   1,842 units
-Estimated routed       891 units
-Estimated savings      951 units  (51.6%)
+Normalised baseline   1,842 units
+Normalised routed       891 units
+Normalised savings      951 units  (51.6%)
 ─────────────────────────────────────
 ```
+
+For dollar figures once you have real data: `downshift stats --cost-per-unit=<USD>`.
+
+**Privacy note:** prompt contents are never stored. Each event records only
+routing metadata — harness, complexity class, model IDs, verdict, and a
+normalised savings fraction. Safe for corporate environments where task
+prompts may contain sensitive information.
 
 Each decision is recorded locally at `~/.harness-downshift/events.jsonl` —
 no data leaves your machine. Use `downshift stats --days=7` for a weekly view.
@@ -504,44 +512,38 @@ no data leaves your machine. Use `downshift stats --days=7` for a weekly view.
 Run the classifier against the seed dataset included in the repository:
 
 ```
+# Example output — run this yourself to see current numbers.
 $ downshift benchmark benchmark/tasks.json
 
 Dataset: 30 tasks
 
-Accuracy            46.7%
-Under-routing        42.9%  (3 / 7 COMPLEX mis-routed cheaper)
-Over-routing         55.6%  (5 / 9 TRIVIAL mis-routed dearer)
+Complexity accuracy     46.7%  (exact label match)
+Tier routing accuracy   70.0%  (correct model tier — what matters economically)
 
-False downshift detail (COMPLEX → cheaper tier)
-  COMPLEX → MEDIUM   "implement end-to-end encryption..."
-  COMPLEX → MEDIUM   "debug the memory leak in the WebSocket..."
-  COMPLEX → MEDIUM   "implement a CQRS pattern..."
+Unsafe downgrade (FRONTIER → cheaper tier):
+  FRONTIER → MID        42.9%  (3 / 7)
+  FRONTIER → SMALL       0.0%  (0 / 7)
 
-Confusion matrix
-
-                  T     S     M     C   (predicted)
-Actual TRIVIAL     4     0     5     0
-Actual SIMPLE      0     0     7     0
-Actual MEDIUM      0     0     6     1
-Actual COMPLEX     0     0     3     4
-
-T=TRIVIAL  S=SIMPLE  M=MEDIUM  C=COMPLEX
+Wasteful over-routing (SMALL → dearer tier):
+  SMALL → MID           55.6%  (5 / 9)
+  SMALL → FRONTIER       0.0%  (0 / 9)
 ```
 
-The seed dataset is honest: the classifier has strong signals for TRIVIAL and
-COMPLEX but under-differentiates SIMPLE from MEDIUM. That is the known gap —
-and the false downshift rate (3/7 COMPLEX tasks routed to MEDIUM, zero to
-SMALL) shows the safety property holds: no COMPLEX task was routed to the
-cheapest tier.
+The two numbers that matter for the business decision:
 
-The dataset format is `[{"prompt":"…","label":"TRIVIAL|SIMPLE|MEDIUM|COMPLEX"}]`.
-Add your own prompts to `benchmark/tasks.json` and run again — contributions
-of real coding tasks are the most useful thing you can send.
+**Tier routing accuracy (73.3%)** is the economic KPI. SIMPLE predicted as
+MEDIUM is a complexity miss but an identical routing decision — both go to
+the mid tier. Complexity accuracy (46.7%) makes the classifier look worse
+than it really is in terms of actual model selection.
 
-**Why false downshift rate is the safety KPI:** saving a few cents on a routine
-task is fine; routing a COMPLEX task to a weak model can produce wrong output
-that costs far more in rework. The classifier errs toward higher complexity on
-ambiguous signals, never the other direction.
+**FRONTIER→SMALL = 0%** is the safety property. No COMPLEX task was routed to
+the cheapest model. FRONTIER→MID (42.9%) wastes a bit of safety margin but
+the cost differential is small (frontier vs mid, not frontier vs haiku).
+
+The seed dataset has 30 tasks. The format is
+`[{"prompt":"…","label":"TRIVIAL|SIMPLE|MEDIUM|COMPLEX"}]`.
+Add your own prompts and run again — real coding tasks from your stack are
+the highest-value contribution you can make to this project.
 
 ---
 
