@@ -25,10 +25,10 @@ go.work.sum
 # Local
 *.log
 
-# Catalog — the curated catalog.json with tiered model data is a strategic
-# asset and is intentionally NOT published in this repository.
-# Use catalog.sample.json as a starting point, then place your filled-in
-# catalog at ~/.harness-downshift/catalog.json (loaded automatically).
-# Any project-level override also stays local:
-catalog.json
+# Catalog overrides — the user's ~/.harness-downshift/catalog.json and any
+# project-level override are personal data, NOT committed to the repository.
+# The embedded default catalog (internal/catalog/catalog.json) IS committed —
+# it ships inside the binary via go:embed.
+# Override path: ~/.harness-downshift/catalog.json (auto-loaded at runtime).
+/catalog.json
 .harness-downshift/
