@@ -39,7 +39,8 @@ type Entry struct {
 	Family      string            `json:"family"` // stable prefix for version-agnostic matching
 	Provider    string            `json:"provider"`
 	Harness     string            `json:"harness"`
-	Tier        string            `json:"tier"` // "small" | "mid" | "frontier" | "unknown"
+	Tier        string            `json:"tier"`    // "small" | "mid" | "frontier" | "unknown"
+	Routing     string            `json:"routing"` // "automatic" (default) | "explicit_only"
 	EffortScale string            `json:"effort_scale"`
 	EffortMap   map[string]string `json:"effort_map"` // "low"|"medium"|"high" → native string
 	InputCostM  float64           `json:"input_cost_per_1m"`
@@ -89,7 +90,12 @@ func Load() *Catalog {
 		data, err := os.ReadFile(path)
 		if err == nil {
 			if override, err := decode(data); err == nil {
-				base.Entries = mergeEntries(base.Entries, override.Entries)
+				merged := mergeEntries(base.Entries, override.Entries)
+				if err := validateEntries(merged); err != nil {
+					fmt.Fprintf(os.Stderr, "downshift: warning: could not merge %s (%v); using embedded catalog\n", path, err)
+				} else {
+					base.Entries = merged
+				}
 			} else {
 				fmt.Fprintf(os.Stderr, "downshift: warning: could not parse %s (%v); using embedded catalog\n", path, err)
 			}
@@ -142,8 +148,8 @@ func build(f catalogFile) *Catalog {
 
 	for _, e := range f.Entries {
 		tier, ok := parseTier(e.Tier)
-		if !ok {
-			continue // skip unknown-tier entries in the index
+		if !ok || e.ID == "" || e.Harness == "" {
+			continue
 		}
 		m := core.Model{
 			ID:      e.ID,
@@ -156,9 +162,11 @@ func build(f catalogFile) *Catalog {
 		if c.index[e.Harness] == nil {
 			c.index[e.Harness] = make(map[core.Tier]core.Model)
 		}
-		// First entry for this (harness, tier) pair wins.
-		if _, exists := c.index[e.Harness][tier]; !exists {
-			c.index[e.Harness][tier] = m
+		// Explicit-only models are valid current selections, but never automatic targets.
+		if e.Routing != "explicit_only" {
+			if _, exists := c.index[e.Harness][tier]; !exists {
+				c.index[e.Harness][tier] = m
+			}
 		}
 
 		if c.byID[e.Harness] == nil {
@@ -209,6 +217,7 @@ func mergeEntries(base, override []Entry) []Entry {
 
 func validateEntries(entries []Entry) error {
 	used := make(map[string]string)
+	families := make(map[string][]string)
 	for _, e := range entries {
 		if e.ID == "" || e.Harness == "" {
 			continue // section/comment entries
@@ -219,6 +228,16 @@ func validateEntries(entries []Entry) error {
 				return fmt.Errorf("duplicate catalog model or alias %q for harness %q (also %q)", name, e.Harness, prior)
 			}
 			used[key] = e.ID
+		}
+		if e.Family != "" {
+			key := strings.ToLower(e.Harness)
+			family := strings.ToLower(e.Family)
+			for _, prior := range families[key] {
+				if strings.HasPrefix(family, prior) || strings.HasPrefix(prior, family) {
+					return fmt.Errorf("overlapping model families %q and %q for harness %q", family, prior, e.Harness)
+				}
+			}
+			families[key] = append(families[key], family)
 		}
 	}
 	return nil
