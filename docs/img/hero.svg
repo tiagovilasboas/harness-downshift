@@ -1,65 +1,138 @@
-<svg width="860" height="460" viewBox="0 0 860 460" xmlns="http://www.w3.org/2000/svg" font-family="'SF Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace">
-  <rect width="860" height="460" rx="12" fill="#0f1117"/>
+<svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" font-family="'SF Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace">
 
-  <!-- Header -->
-  <text x="40" y="52" fill="#e6e9ef" font-size="26" font-weight="700">harness-downshift</text>
-  <text x="40" y="80" fill="#8b93a7" font-size="14">Right-sized models for every subagent task.</text>
-  <text x="40" y="100" fill="#8b93a7" font-size="14">Downshift on the straights, power through the curves.</text>
+  <!-- Background -->
+  <rect width="1200" height="630" fill="#0d1117"/>
 
-  <line x1="40" y1="124" x2="820" y2="124" stroke="#242835" stroke-width="1"/>
+  <!-- Subtle grid lines -->
+  <line x1="0" y1="315" x2="1200" y2="315" stroke="#161b22" stroke-width="1"/>
+  <line x1="600" y1="0" x2="600" y2="630" stroke="#161b22" stroke-width="1"/>
 
-  <!-- Column headers -->
-  <text x="40"  y="156" fill="#5b6373" font-size="11" letter-spacing="1">COMPLEXITY</text>
-  <text x="168" y="156" fill="#5b6373" font-size="11" letter-spacing="1">EXAMPLES</text>
-  <text x="450" y="156" fill="#5b6373" font-size="11" letter-spacing="1">MODEL (CLAUDE-CODE)</text>
-  <text x="670" y="156" fill="#5b6373" font-size="11" letter-spacing="1">EFFORT</text>
-  <text x="740" y="156" fill="#5b6373" font-size="11" letter-spacing="1">$/1M IN</text>
+  <!-- Left accent bar -->
+  <rect x="0" y="0" width="4" height="630" fill="#238636"/>
 
-  <!-- TRIVIAL row -->
-  <g font-size="13">
-    <rect x="40" y="168" width="780" height="44" rx="7" fill="#12331f"/>
-    <text x="56"  y="196" fill="#7ee2a8" font-weight="700">TRIVIAL</text>
-    <text x="168" y="196" fill="#9aa4b8">rename · fix typo · git commit · format</text>
-    <text x="450" y="196" fill="#7ee2a8" font-weight="600">claude-haiku-4</text>
-    <text x="670" y="196" fill="#7ee2a8">low</text>
-    <text x="740" y="196" fill="#5b6373">$0.80</text>
-    <text x="816" y="196" fill="#7ee2a8" text-anchor="end" font-size="16">▼</text>
-  </g>
+  <!-- ── LEFT PANEL ── -->
 
-  <!-- SIMPLE row -->
-  <g font-size="13">
-    <rect x="40" y="222" width="780" height="44" rx="7" fill="#172135"/>
-    <text x="56"  y="250" fill="#7fb0ff" font-weight="700">SIMPLE</text>
-    <text x="168" y="250" fill="#9aa4b8">add field · fix bug · write function</text>
-    <text x="450" y="250" fill="#7fb0ff" font-weight="600">claude-sonnet-4-6</text>
-    <text x="670" y="250" fill="#7fb0ff">medium</text>
-    <text x="740" y="250" fill="#5b6373">$3.00</text>
-  </g>
+  <!-- Project name -->
+  <text x="52" y="88" fill="#e6edf3" font-size="40" font-weight="700" letter-spacing="-1">harness-downshift</text>
 
-  <!-- MEDIUM row -->
-  <g font-size="13">
-    <rect x="40" y="276" width="780" height="44" rx="7" fill="#172135"/>
-    <text x="56"  y="304" fill="#7fb0ff" font-weight="700">MEDIUM</text>
-    <text x="168" y="304" fill="#9aa4b8">refactor module · feature across files · debug</text>
-    <text x="450" y="304" fill="#7fb0ff" font-weight="600">claude-sonnet-4-6</text>
-    <text x="670" y="304" fill="#7fb0ff">medium</text>
-    <text x="740" y="304" fill="#5b6373">$3.00</text>
-  </g>
+  <!-- Tagline line 1 -->
+  <text x="52" y="128" fill="#8b949e" font-size="18">Right-sized models for every subagent task.</text>
 
-  <!-- COMPLEX row -->
-  <g font-size="13">
-    <rect x="40" y="330" width="780" height="44" rx="7" fill="#3a1f2b"/>
-    <text x="56"  y="358" fill="#ff9db2" font-weight="700">COMPLEX</text>
-    <text x="168" y="358" fill="#9aa4b8">rearchitect · migration · race condition · RFC</text>
-    <text x="450" y="358" fill="#ff9db2" font-weight="600">claude-opus-4-8</text>
-    <text x="670" y="358" fill="#ff9db2">high</text>
-    <text x="740" y="358" fill="#5b6373">$15.00</text>
-    <text x="816" y="358" fill="#ff9db2" text-anchor="end" font-size="16">▲</text>
-  </g>
+  <!-- Tagline line 2 — the gear metaphor -->
+  <text x="52" y="156" fill="#58a6ff" font-size="16" font-weight="600">Downshift on the straights. Power through the curves.</text>
 
-  <line x1="40" y1="396" x2="820" y2="396" stroke="#242835" stroke-width="1"/>
+  <line x1="52" y1="180" x2="560" y2="180" stroke="#21262d" stroke-width="1"/>
 
-  <!-- Footer -->
-  <text x="40"  y="430" fill="#7ee2a8" font-size="13" font-weight="700">~95% cheaper</text>
-  <text x="156" y="430" fill="#8b93a7" font-size="13">on trivial subagents · model IDs live in catalog.json · update without recompiling</text>
+  <!-- Harness badges -->
+  <text x="52" y="208" fill="#6e7681" font-size="11" letter-spacing="1.5">WORKS WITH</text>
+
+  <!-- Claude Code badge -->
+  <rect x="52" y="218" width="116" height="26" rx="5" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+  <text x="110" y="236" fill="#e6edf3" font-size="12" text-anchor="middle">Claude Code</text>
+
+  <!-- Cursor badge -->
+  <rect x="178" y="218" width="80" height="26" rx="5" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+  <text x="218" y="236" fill="#e6edf3" font-size="12" text-anchor="middle">Cursor</text>
+
+  <!-- Codex badge -->
+  <rect x="268" y="218" width="76" height="26" rx="5" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+  <text x="306" y="236" fill="#e6edf3" font-size="12" text-anchor="middle">Codex</text>
+
+  <!-- Grok badge -->
+  <rect x="354" y="218" width="64" height="26" rx="5" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+  <text x="386" y="236" fill="#e6edf3" font-size="12" text-anchor="middle">Grok</text>
+
+  <!-- OpenRouter badge -->
+  <rect x="428" y="218" width="100" height="26" rx="5" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+  <text x="478" y="236" fill="#e6edf3" font-size="12" text-anchor="middle">OpenRouter</text>
+
+  <line x1="52" y1="264" x2="560" y2="264" stroke="#21262d" stroke-width="1"/>
+
+  <!-- Key properties -->
+  <text x="52" y="292" fill="#6e7681" font-size="11" letter-spacing="1.5">HOW IT WORKS</text>
+
+  <text x="52" y="320" fill="#3fb950" font-size="14">✓</text>
+  <text x="72" y="320" fill="#8b949e" font-size="14">Deterministic classifier — no LLM in the routing loop</text>
+
+  <text x="52" y="348" fill="#3fb950" font-size="14">✓</text>
+  <text x="72" y="348" fill="#8b949e" font-size="14">Rewrites subagent model before spawn via PreToolUse hook</text>
+
+  <text x="52" y="376" fill="#3fb950" font-size="14">✓</text>
+  <text x="72" y="376" fill="#8b949e" font-size="14">Version-agnostic: claude-opus-5 matches via family prefix</text>
+
+  <text x="52" y="404" fill="#3fb950" font-size="14">✓</text>
+  <text x="72" y="404" fill="#8b949e" font-size="14">OpenRouter transparent: strips provider/ prefix automatically</text>
+
+  <text x="52" y="432" fill="#3fb950" font-size="14">✓</text>
+  <text x="72" y="432" fill="#8b949e" font-size="14">Single Go binary · zero deps · catalog.json updatable at runtime</text>
+
+  <line x1="52" y1="458" x2="560" y2="458" stroke="#21262d" stroke-width="1"/>
+
+  <!-- Bottom stat -->
+  <text x="52" y="490" fill="#3fb950" font-size="28" font-weight="700">~95% cheaper</text>
+  <text x="52" y="516" fill="#6e7681" font-size="15">on trivial subagents running frontier models</text>
+
+  <!-- GitHub URL -->
+  <text x="52" y="580" fill="#58a6ff" font-size="13">github.com/tiagovilasboas/harness-downshift</text>
+  <text x="52" y="600" fill="#30363d" font-size="11">© 2026 Tiago de Carvalho Vilas Boas · BUSL-1.1</text>
+
+  <!-- ── DIVIDER ── -->
+  <line x1="596" y1="40" x2="596" y2="590" stroke="#21262d" stroke-width="1"/>
+
+  <!-- ── RIGHT PANEL — Gear table ── -->
+
+  <text x="624" y="72" fill="#6e7681" font-size="11" letter-spacing="1.5">GEAR</text>
+  <text x="724" y="72" fill="#6e7681" font-size="11" letter-spacing="1.5">TASK</text>
+  <text x="880" y="72" fill="#6e7681" font-size="11" letter-spacing="1.5">TIER · EFFORT</text>
+  <text x="1100" y="72" fill="#6e7681" font-size="11" letter-spacing="1.5" text-anchor="end">$/1M</text>
+
+  <line x1="620" y1="84" x2="1164" y2="84" stroke="#21262d" stroke-width="1"/>
+
+  <!-- Row 1 — TRIVIAL -->
+  <rect x="620" y="96" width="544" height="108" rx="8" fill="#0d2818"/>
+  <!-- Gear indicator -->
+  <text x="648" y="132" fill="#3fb950" font-size="28" font-weight="700" text-anchor="middle">1</text>
+  <text x="648" y="156" fill="#3fb950" font-size="10" text-anchor="middle">HIGH GEAR</text>
+  <line x1="674" y1="100" x2="674" y2="200" stroke="#21262d" stroke-width="1"/>
+  <!-- Task -->
+  <text x="690" y="126" fill="#3fb950" font-size="15" font-weight="700">TRIVIAL</text>
+  <text x="690" y="148" fill="#8b949e" font-size="12">rename · format · git commit · fix typo</text>
+  <!-- Model + effort -->
+  <text x="880" y="126" fill="#3fb950" font-size="13" font-weight="600">small · low effort</text>
+  <text x="880" y="148" fill="#6e7681" font-size="11">claude-haiku / gpt-5.6-luna / grok</text>
+  <!-- Price + arrow -->
+  <text x="1148" y="130" fill="#6e7681" font-size="13" text-anchor="end">$0.15–0.80</text>
+  <text x="1160" y="148" fill="#3fb950" font-size="20" text-anchor="end">▼</text>
+
+  <!-- Row 2 — SIMPLE / MEDIUM -->
+  <rect x="620" y="216" width="544" height="108" rx="8" fill="#0d1d35"/>
+  <text x="648" y="252" fill="#58a6ff" font-size="28" font-weight="700" text-anchor="middle">2</text>
+  <text x="648" y="276" fill="#58a6ff" font-size="10" text-anchor="middle">MID GEAR</text>
+  <line x1="674" y1="220" x2="674" y2="320" stroke="#21262d" stroke-width="1"/>
+  <text x="690" y="246" fill="#58a6ff" font-size="15" font-weight="700">SIMPLE · MEDIUM</text>
+  <text x="690" y="268" fill="#8b949e" font-size="12">add field · fix bug · implement feature · debug</text>
+  <text x="880" y="246" fill="#58a6ff" font-size="13" font-weight="600">mid · medium effort</text>
+  <text x="880" y="268" fill="#6e7681" font-size="11">claude-sonnet / gpt-5.6-terra</text>
+  <text x="1148" y="250" fill="#6e7681" font-size="13" text-anchor="end">$1.25–3.00</text>
+
+  <!-- Row 3 — COMPLEX -->
+  <rect x="620" y="336" width="544" height="108" rx="8" fill="#2d1117"/>
+  <text x="648" y="372" fill="#f85149" font-size="28" font-weight="700" text-anchor="middle">L</text>
+  <text x="648" y="396" fill="#f85149" font-size="10" text-anchor="middle">LOW GEAR</text>
+  <line x1="674" y1="340" x2="674" y2="440" stroke="#21262d" stroke-width="1"/>
+  <text x="690" y="366" fill="#f85149" font-size="15" font-weight="700">COMPLEX</text>
+  <text x="690" y="388" fill="#8b949e" font-size="12">rearchitect · migrate · race condition · RFC</text>
+  <text x="880" y="366" fill="#f85149" font-size="13" font-weight="600">frontier · high effort</text>
+  <text x="880" y="388" fill="#6e7681" font-size="11">claude-opus / gpt-5.3-codex</text>
+  <text x="1148" y="370" fill="#6e7681" font-size="13" text-anchor="end">$10–15.00</text>
+  <text x="1160" y="388" fill="#f85149" font-size="20" text-anchor="end">▲</text>
+
+  <!-- install snippet -->
+  <rect x="620" y="464" width="544" height="48" rx="6" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+  <text x="644" y="492" fill="#6e7681" font-size="12">$</text>
+  <text x="660" y="492" fill="#e6edf3" font-size="12">go install github.com/tiagovilasboas/harness-downshift/cmd/downshift@latest</text>
+
+  <!-- bottom tag -->
+  <text x="624" y="580" fill="#6e7681" font-size="12">BSL-1.1 · Harness-native routing · Go 1.27 · single binary</text>
+
 </svg>
