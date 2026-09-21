@@ -431,7 +431,19 @@ func (c *Catalog) EntryFor(harness, modelID string) (Entry, bool) {
 	return Entry{}, false
 }
 
-// EffortFor implements core.Resolver. It translates a core.Effort level to the
+// IsExplicitOnly implements core.Resolver. Returns true when the model ID is
+// marked routing:"explicit_only" — meaning it is a valid current selection
+// but must never be chosen as an automatic routing target.
+func (c *Catalog) IsExplicitOnly(harness, modelID string) bool {
+	if modelID == "" {
+		return false
+	}
+	entry, ok := c.EntryFor(harness, modelID)
+	if !ok {
+		return false
+	}
+	return entry.Routing == "explicit_only"
+}
 // harness-native string for the given model ID using the entry's effort_map.
 // Falls back to effort.String() ("low"/"medium"/"high") when no entry or map
 // is found — safe to call for any harness/model combination.

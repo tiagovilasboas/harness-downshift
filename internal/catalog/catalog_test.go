@@ -319,6 +319,50 @@ func TestEffortValue_KnownScale(t *testing.T) {
 	}
 }
 
+// --- explicit_only routing policy ---
+
+func TestIsExplicitOnly_AstraIsExplicitOnly(t *testing.T) {
+	c := Load()
+	if !c.IsExplicitOnly("codex", "gpt-6-astra") {
+		t.Error("gpt-6-astra should be explicit_only")
+	}
+}
+
+func TestIsExplicitOnly_NormalModelIsNotExplicit(t *testing.T) {
+	c := Load()
+	frontier := c.ModelFor("codex", core.TierFrontier)
+	if c.IsExplicitOnly("codex", frontier.ID) {
+		t.Errorf("%s should not be explicit_only", frontier.ID)
+	}
+}
+
+func TestIsExplicitOnly_EmptyIDReturnsFalse(t *testing.T) {
+	c := Load()
+	if c.IsExplicitOnly("codex", "") {
+		t.Error("empty model ID should return false")
+	}
+}
+
+func TestIsExplicitOnly_UnknownIDReturnsFalse(t *testing.T) {
+	c := Load()
+	if c.IsExplicitOnly("codex", "completely-unknown-model") {
+		t.Error("unknown model should return false (fail-open)")
+	}
+}
+
+func TestAstraNotChosenAsAutomaticTarget(t *testing.T) {
+	c := Load()
+	// gpt-6-astra is explicit_only — ModelFor must NEVER return it as the
+	// automatic target for any tier, even if it is the only frontier model
+	// registered for that harness.
+	for _, tier := range []core.Tier{core.TierSmall, core.TierMid, core.TierFrontier} {
+		m := c.ModelFor("codex", tier)
+		if m.ID == "gpt-6-astra" {
+			t.Errorf("ModelFor(codex, %s) returned explicit_only model gpt-6-astra", tier)
+		}
+	}
+}
+
 func TestEntries_NotEmpty(t *testing.T) {
 	c := Load()
 	if len(c.Entries()) == 0 {
