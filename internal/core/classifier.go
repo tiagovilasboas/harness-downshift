@@ -35,23 +35,6 @@ func (c Complexity) String() string {
 	}
 }
 
-// Tier maps a complexity to the minimum capable tier.
-// This is the gearbox: which gear does this stretch of road need?
-func (c Complexity) Tier() Tier {
-	switch c {
-	case Trivial:
-		return TierSmall // flat straight: high gear, cheap
-	case Simple:
-		return TierMid
-	case Medium:
-		return TierMid
-	case Complex:
-		return TierFrontier // sharp curve: downshift for torque
-	default:
-		return TierMid
-	}
-}
-
 // signal is a weighted matcher for a complexity class.
 type signal struct {
 	re     *regexp.Regexp

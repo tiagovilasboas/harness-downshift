@@ -2,6 +2,24 @@ package core
 
 import "fmt"
 
+// Tier maps a complexity to the minimum capable tier — the gearbox rule:
+// which gear does this stretch of road need? Lives here because it is routing
+// policy, not classification knowledge.
+func (c Complexity) Tier() Tier {
+	switch c {
+	case Trivial:
+		return TierSmall // flat straight: high gear, cheap
+	case Simple:
+		return TierMid
+	case Medium:
+		return TierMid
+	case Complex:
+		return TierFrontier // sharp curve: downshift for torque
+	default:
+		return TierMid
+	}
+}
+
 // Decision is the full routing decision for one subagent task: what the task
 // needs, what model to use on the given harness, and how it compares to the
 // model the harness would have used by default.
