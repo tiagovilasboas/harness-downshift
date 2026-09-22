@@ -1,0 +1,161 @@
+// Copyright (c) 2026 Tiago de Carvalho Vilas Boas.
+// SPDX-License-Identifier: BUSL-1.1
+
+package classifier
+
+import (
+	"embed"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"time"
+
+	"github.com/tiagovilasboas/harness-downshift/internal/routingv2/domain"
+)
+
+//go:embed weights/default.json
+var embeddedWeights embed.FS
+
+// Weights holds the trained parameters for the softmax classifier.
+// Structure: weights[tier][feature] + bias[tier]
+type Weights struct {
+	Version string      `json:"version"`
+	Small   TierWeights `json:"small"`
+	Mid     TierWeights `json:"mid"`
+	Frontier TierWeights `json:"frontier"`
+}
+
+// TierWeights holds weights and bias for one tier.
+type TierWeights struct {
+	// Weights for each of the 13 features in canonical order
+	W    [domain.NumFeatures]float64 `json:"w"`
+	Bias float64                      `json:"bias"`
+}
+
+// LoadWeights loads weights with the following precedence:
+// 1. User override at ~/.harness-downshift/weights.json
+// 2. Embedded default weights
+func LoadWeights() (*Weights, error) {
+	// Try user override first
+	home, err := os.UserHomeDir()
+	if err == nil {
+		userPath := filepath.Join(home, ".harness-downshift", "weights.json")
+		if data, err := os.ReadFile(userPath); err == nil {
+			var w Weights
+			if err := json.Unmarshal(data, &w); err == nil {
+				return &w, nil
+			}
+		}
+	}
+
+	// Fall back to embedded
+	return LoadEmbeddedWeights()
+}
+
+// LoadEmbeddedWeights loads only the embedded default weights.
+func LoadEmbeddedWeights() (*Weights, error) {
+	data, err := embeddedWeights.ReadFile("weights/default.json")
+	if err != nil {
+		return nil, err
+	}
+
+	var w Weights
+	if err := json.Unmarshal(data, &w); err != nil {
+		return nil, err
+	}
+	return &w, nil
+}
+
+// LoadWeightsFromFile loads weights from a specific path.
+func LoadWeightsFromFile(path string) (*Weights, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var w Weights
+	if err := json.Unmarshal(data, &w); err != nil {
+		return nil, err
+	}
+	return &w, nil
+}
+
+// SaveWeights saves weights to a file with current timestamp as version.
+func SaveWeights(w *Weights, path string) error {
+	w.Version = time.Now().UTC().Format(time.RFC3339)
+
+	data, err := json.MarshalIndent(w, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	// Ensure directory exists
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+
+	return os.WriteFile(path, data, 0644)
+}
+
+// DefaultWeights returns reasonable initial weights for cold start.
+// These are tuned to produce sensible behavior before any training.
+func DefaultWeights() *Weights {
+	return &Weights{
+		Version: "default-v1",
+		Small: TierWeights{
+			W: [domain.NumFeatures]float64{
+				1.5,  // mechanical → small
+				-0.2, // coding
+				-0.5, // debugging
+				-0.3, // refactoring
+				-1.0, // architecture
+				-1.5, // migration
+				-1.5, // security
+				-1.5, // concurrency
+				-0.5, // planning
+				0.2,  // tool_use
+				-0.3, // ambiguity
+				-0.8, // cross_module
+				-0.5, // context_size
+			},
+			Bias: 0.5,
+		},
+		Mid: TierWeights{
+			W: [domain.NumFeatures]float64{
+				-0.5, // mechanical
+				0.5,  // coding → mid
+				0.4,  // debugging
+				0.5,  // refactoring → mid
+				0.3,  // architecture
+				0.2,  // migration
+				0.3,  // security
+				0.2,  // concurrency
+				0.4,  // planning
+				0.3,  // tool_use
+				0.2,  // ambiguity
+				0.3,  // cross_module
+				0.3,  // context_size
+			},
+			Bias: 0.0,
+		},
+		Frontier: TierWeights{
+			W: [domain.NumFeatures]float64{
+				-1.0, // mechanical
+				0.2,  // coding
+				0.5,  // debugging
+				0.3,  // refactoring
+				1.0,  // architecture → frontier
+				1.2,  // migration → frontier
+				1.2,  // security → frontier
+				1.2,  // concurrency → frontier
+				0.6,  // planning
+				0.3,  // tool_use
+				0.5,  // ambiguity
+				0.8,  // cross_module → frontier
+				0.6,  // context_size
+			},
+			Bias: -0.5,
+		},
+	}
+}
