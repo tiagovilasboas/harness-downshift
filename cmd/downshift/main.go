@@ -29,6 +29,8 @@ import (
 	"github.com/tiagovilasboas/harness-downshift/internal/catalog"
 	"github.com/tiagovilasboas/harness-downshift/internal/core"
 	"github.com/tiagovilasboas/harness-downshift/internal/models"
+	"github.com/tiagovilasboas/harness-downshift/internal/routingv2/classifier"
+	"github.com/tiagovilasboas/harness-downshift/internal/routingv2/training"
 	"github.com/tiagovilasboas/harness-downshift/internal/telemetry"
 )
 
@@ -74,6 +76,8 @@ func main() {
 		os.Exit(runStats(args[1:]))
 	case "benchmark":
 		os.Exit(runBenchmark(args[1:]))
+	case "train":
+		os.Exit(runTrain(args[1:]))
 	case "-h", "--help", "help":
 		usage()
 		os.Exit(0)
@@ -229,24 +233,245 @@ func runStats(args []string) int {
 
 // runBenchmark runs the classifier against a labelled task dataset and prints
 // a confusion matrix + false-downshift rate.
-// Usage: downshift benchmark <dataset.json>
+// Usage: downshift benchmark <dataset.json> [--compare]
 func runBenchmark(args []string) int {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: downshift benchmark <dataset.json>")
+		fmt.Fprintln(os.Stderr, "usage: downshift benchmark <dataset.json> [--compare]")
 		fmt.Fprintln(os.Stderr, "")
 		fmt.Fprintln(os.Stderr, "The dataset is a JSON array of {\"prompt\":\"...\",\"label\":\"TRIVIAL|SIMPLE|MEDIUM|COMPLEX\"} objects.")
 		fmt.Fprintln(os.Stderr, "A seed dataset is available at benchmark/tasks.json in the repository.")
+		fmt.Fprintln(os.Stderr, "")
+		fmt.Fprintln(os.Stderr, "  --compare    Run both Legacy and CapabilityRouter v2 side by side")
 		return 2
 	}
-	path := args[0]
+
+	compare := false
+	path := ""
+	for _, arg := range args {
+		if arg == "--compare" {
+			compare = true
+		} else {
+			path = arg
+		}
+	}
+
+	if path == "" {
+		fmt.Fprintln(os.Stderr, "error: dataset path required")
+		return 2
+	}
+
 	tasks, err := benchmark.LoadDataset(path)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error loading dataset: %v\n", err)
 		return 1
 	}
+
+	if compare {
+		return runBenchmarkCompare(tasks, path)
+	}
+
 	results := benchmark.Run(tasks, os.Stderr)
 	matrix := benchmark.Build(results)
 	benchmark.Print(results, matrix, os.Stdout)
+	return 0
+}
+
+// runBenchmarkCompare runs Legacy vs CapabilityRouter v2 side by side.
+// Uses the v2 training dataset format (SMALL/MID/FRONTIER labels).
+func runBenchmarkCompare(legacyTasks []benchmark.Task, path string) int {
+	// Load dataset in v2 format (SMALL/MID/FRONTIER)
+	v2ds, err := training.LoadDataset(path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error loading v2 dataset: %v\n", err)
+		return 1
+	}
+
+	// Legacy: run the existing benchmark
+	legacyResults := benchmark.Run(legacyTasks, os.Stderr)
+
+	// v2: run the capability router classifier
+	clf := classifier.NewSoftmaxClassifierDefault()
+	v2Actual := make([]core.Tier, v2ds.Size())
+	v2Predicted := make([]core.Tier, v2ds.Size())
+
+	for i, ex := range v2ds.Examples {
+		v2Actual[i] = ex.Tier()
+		probs, _ := clf.Classify(ex.Features)
+		v2Predicted[i] = probs.MaxTier()
+	}
+
+	v2Metrics := training.Compute(v2Actual, v2Predicted)
+
+	// Compute legacy metrics in v2 terms (map COMPLEX→FRONTIER, etc.)
+	legacyActual := make([]core.Tier, len(legacyResults))
+	legacyPredicted := make([]core.Tier, len(legacyResults))
+	for i, r := range legacyResults {
+		// Convert legacy complexity to tier
+		switch r.Task.Label {
+		case "TRIVIAL":
+			legacyActual[i] = core.TierSmall
+		case "SIMPLE", "MEDIUM":
+			legacyActual[i] = core.TierMid
+		case "COMPLEX":
+			legacyActual[i] = core.TierFrontier
+		default:
+			legacyActual[i] = core.TierMid
+		}
+		legacyPredicted[i] = r.Predicted.Tier()
+	}
+	legacyMetrics := training.Compute(legacyActual, legacyPredicted)
+
+	// Print comparison
+	fmt.Fprintln(os.Stdout, "Benchmark: Legacy vs Capability Router v2")
+	fmt.Fprintf(os.Stdout, "Dataset: %d tasks\n\n", v2ds.Size())
+
+	fmt.Fprintf(os.Stdout, "%-35s %10s %10s %10s\n", "", "Legacy", "v2", "Delta")
+	fmt.Fprintf(os.Stdout, "%-35s %10.1f%% %10.1f%% %+9.1f%%\n",
+		"Tier accuracy",
+		legacyMetrics.Accuracy*100, v2Metrics.Accuracy*100,
+		(v2Metrics.Accuracy-legacyMetrics.Accuracy)*100)
+	fmt.Fprintf(os.Stdout, "%-35s %10.1f%% %10.1f%% %+9.1f%%\n",
+		"Unsafe downgrade",
+		legacyMetrics.UnsafeDowngradeRate*100, v2Metrics.UnsafeDowngradeRate*100,
+		(v2Metrics.UnsafeDowngradeRate-legacyMetrics.UnsafeDowngradeRate)*100)
+	fmt.Fprintf(os.Stdout, "  %-33s %10d  %10d\n",
+		"FRONTIER → SMALL",
+		legacyMetrics.Unsafe.FrontierToSmall, v2Metrics.Unsafe.FrontierToSmall)
+	fmt.Fprintf(os.Stdout, "  %-33s %10d  %10d\n",
+		"FRONTIER → MID",
+		legacyMetrics.Unsafe.FrontierToMid, v2Metrics.Unsafe.FrontierToMid)
+	fmt.Fprintf(os.Stdout, "%-35s %10.1f%% %10.1f%% %+9.1f%%\n",
+		"Over-routing",
+		legacyMetrics.OverRoutingRate*100, v2Metrics.OverRoutingRate*100,
+		(v2Metrics.OverRoutingRate-legacyMetrics.OverRoutingRate)*100)
+	fmt.Fprintf(os.Stdout, "%-35s %10.3f  %10.3f  %+9.3f\n",
+		"Risk-weighted loss",
+		legacyMetrics.RiskWeightedLoss, v2Metrics.RiskWeightedLoss,
+		v2Metrics.RiskWeightedLoss-legacyMetrics.RiskWeightedLoss)
+	fmt.Fprintln(os.Stdout, "")
+
+	// Verdict
+	if v2Metrics.Unsafe.FrontierToSmall < legacyMetrics.Unsafe.FrontierToSmall ||
+		v2Metrics.UnsafeDowngradeRate < legacyMetrics.UnsafeDowngradeRate {
+		fmt.Fprintln(os.Stdout, "Recommendation: Capability v2 reduces unsafe downgrades.")
+		fmt.Fprintln(os.Stdout, "                Accept any over-routing increase for safety gain.")
+	} else if v2Metrics.Accuracy > legacyMetrics.Accuracy {
+		fmt.Fprintln(os.Stdout, "Recommendation: Capability v2 improves overall accuracy.")
+	} else {
+		fmt.Fprintln(os.Stdout, "Recommendation: No clear improvement — keep legacy as default.")
+		fmt.Fprintln(os.Stdout, "                Collect more training data and re-run train + compare.")
+	}
+
+	return 0
+}
+
+// runTrain trains the capability router v2 classifier on a labelled dataset.
+// Usage: downshift train <dataset.json> [--output=weights.json] [--validation-split=0.2] [--from-events]
+func runTrain(args []string) int {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "usage: downshift train <dataset.json> [--output=<path>] [--validation-split=0.2]")
+		fmt.Fprintln(os.Stderr, "       downshift train --from-events [--output=<path>]")
+		fmt.Fprintln(os.Stderr, "")
+		fmt.Fprintln(os.Stderr, "Dataset format: [{\"prompt\":\"...\",\"label\":\"SMALL|MID|FRONTIER\"}, ...]")
+		fmt.Fprintln(os.Stderr, "")
+		fmt.Fprintln(os.Stderr, "  --output=<path>          Where to write weights.json (default: ./weights.json)")
+		fmt.Fprintln(os.Stderr, "  --validation-split=0.2   Fraction to use for validation (default: 0.2)")
+		fmt.Fprintln(os.Stderr, "  --from-events            Train from collected routing events instead of a dataset")
+		fmt.Fprintln(os.Stderr, "  --epochs=100             Number of training epochs (default: 100)")
+		fmt.Fprintln(os.Stderr, "  --learning-rate=0.1      Learning rate for gradient descent (default: 0.1)")
+		return 2
+	}
+
+	// Parse flags
+	var datasetPath string
+	outputPath := "weights.json"
+	validationSplit := 0.2
+	fromEvents := false
+	config := training.DefaultTrainConfig()
+
+	for _, arg := range args {
+		switch {
+		case arg == "--from-events":
+			fromEvents = true
+		case len(arg) > 9 && arg[:9] == "--output=":
+			outputPath = arg[9:]
+		case len(arg) > 19 && arg[:19] == "--validation-split=":
+			v, err := strconv.ParseFloat(arg[19:], 64)
+			if err == nil && v > 0 && v < 1 {
+				validationSplit = v
+			}
+		case len(arg) > 9 && arg[:9] == "--epochs=":
+			v, err := strconv.Atoi(arg[9:])
+			if err == nil && v > 0 {
+				config.Epochs = v
+			}
+		case len(arg) > 16 && arg[:16] == "--learning-rate=":
+			v, err := strconv.ParseFloat(arg[16:], 64)
+			if err == nil && v > 0 {
+				config.LearningRate = v
+			}
+		default:
+			if !fromEvents {
+				datasetPath = arg
+			}
+		}
+	}
+
+	fmt.Fprintln(os.Stdout, "Training capability-router v2")
+	fmt.Fprintln(os.Stdout, "")
+
+	var result training.TrainResult
+	var err error
+
+	if fromEvents {
+		eventsPath := training.DefaultEventsPath()
+		fmt.Fprintf(os.Stdout, "Source:  events file (%s)\n", eventsPath)
+		result, err = training.TrainFromEvents(eventsPath, config)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error loading events: %v\n", err)
+			return 1
+		}
+		if result.Weights == nil {
+			fmt.Fprintln(os.Stderr, "no events with outcomes yet — run tasks first, then re-train")
+			return 1
+		}
+	} else {
+		if datasetPath == "" {
+			fmt.Fprintln(os.Stderr, "error: dataset path required (or use --from-events)")
+			return 2
+		}
+
+		ds, loadErr := training.LoadDataset(datasetPath)
+		if loadErr != nil {
+			fmt.Fprintf(os.Stderr, "error loading dataset: %v\n", loadErr)
+			return 1
+		}
+
+		fmt.Fprintf(os.Stdout, "Dataset: %d tasks\n", ds.Size())
+		trainDS, valDS := ds.Split(validationSplit)
+		fmt.Fprintf(os.Stdout, "Train/Val: %d / %d\n\n", trainDS.Size(), valDS.Size())
+
+		result = training.Train(trainDS, valDS, config)
+	}
+
+	// Print training results
+	fmt.Fprintf(os.Stdout, "Epochs: %d  LR: %.3f  Risk-weighted: %v\n\n",
+		config.Epochs, config.LearningRate, config.RiskWeighted)
+	fmt.Fprintf(os.Stdout, "Training metrics:\n%s\n", result.TrainMetrics.Summary())
+	if result.ValMetrics.ConfusionMatrix.Total() > 0 {
+		fmt.Fprintf(os.Stdout, "Validation metrics:\n%s\n", result.ValMetrics.Summary())
+	}
+
+	// Save weights
+	if err := classifier.SaveWeights(result.Weights, outputPath); err != nil {
+		fmt.Fprintf(os.Stderr, "error saving weights: %v\n", err)
+		return 1
+	}
+
+	fmt.Fprintf(os.Stdout, "Weights saved to: %s\n", outputPath)
+	fmt.Fprintln(os.Stdout, "")
+	fmt.Fprintf(os.Stdout, "To activate: cp %s ~/.harness-downshift/weights.json\n", outputPath)
+	fmt.Fprintln(os.Stdout, "To compare:  downshift benchmark <dataset> --compare")
 	return 0
 }
 
@@ -280,6 +505,9 @@ Usage:
   downshift stats [--days=N]     Show routing decisions and estimated savings (default: 30 days)
   downshift stats --cost-per-unit=<USD>   Convert normalised units to dollars
   downshift benchmark <file>     Run classifier against a labelled dataset; print confusion matrix
+  downshift benchmark <file> --compare  Compare Legacy vs CapabilityRouter v2 side by side
+  downshift train <file>         Train capability-router v2 on a labelled dataset
+  downshift train --from-events  Train from collected routing events
 
 Grok note:
   Grok routes subagent models via config, not a hook (its PreToolUse is
