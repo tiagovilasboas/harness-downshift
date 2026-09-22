@@ -338,6 +338,77 @@ to a role's reasoning effort in config once.
 
 ---
 
+## Capability Router v2
+
+The default classifier is deterministic (regex scoring). The **CapabilityRouter v2** is a statistical, opt-in upgrade that adds:
+
+- **13 extracted signals** — mechanical, coding, security, concurrency, migration, planning, etc.
+- **Deterministic safety floor** — high-risk tasks (auth, migration, race conditions) are pinned to Frontier regardless of the classifier.
+- **Risk-weighted loss** — under-routing is penalised 5–10× harder than over-routing. `FRONTIER→SMALL` is catastrophic; `SMALL→MID` is cheap.
+- **Personalised weights** — train on your own prompts, compare against legacy, activate manually.
+
+The router is **completely model-agnostic**: no model names, no provider strings in the routing logic. It decides tiers; the catalog decides models.
+
+### Try it
+
+```bash
+# Train on a labelled dataset (SMALL/MID/FRONTIER labels)
+downshift train dataset.json
+
+# Or train from collected routing events (privacy-first: features only, no prompts)
+downshift train --from-events
+
+# Compare legacy vs v2 side by side
+downshift benchmark dataset.json --compare
+
+# Activate when v2 metrics are better
+cp weights.json ~/.harness-downshift/weights.json
+```
+
+### Dataset format
+
+```json
+[
+  { "prompt": "rename the variable userId", "label": "SMALL" },
+  { "prompt": "add a retry with exponential backoff", "label": "MID" },
+  { "prompt": "rearchitect the auth module to support multi-tenant", "label": "FRONTIER" }
+]
+```
+
+Labels: `SMALL`, `MID`, `FRONTIER`. Features are extracted automatically if absent.
+
+### Benchmark output (`--compare`)
+
+```
+Benchmark: Legacy vs Capability Router v2
+Dataset: 120 tasks
+
+                              Legacy        v2     Delta
+Tier accuracy                  78.3%     85.0%    +6.7%
+Unsafe downgrade               12.5%      4.2%    -8.3%  ✓
+  FRONTIER → SMALL              4.2%      0.0%    -4.2%  ✓
+  FRONTIER → MID                8.3%      4.2%    -4.1%  ✓
+Over-routing                   10.0%     14.2%    +4.2%
+Risk-weighted loss             0.182     0.089    -0.093 ✓
+
+Recommendation: Capability v2 reduces unsafe downgrades significantly.
+                Accept slightly higher over-routing for safety gain.
+```
+
+The go/no-go criterion: **`FRONTIER→SMALL` must fall vs legacy**. Everything else is secondary.
+
+### Privacy-first event collection
+
+When collecting routing events for training, only the extracted **feature vector** is stored — never the raw prompt. Each event is:
+
+```json
+{ "timestamp": "...", "features": {...}, "selected_tier": 2, "confidence": 0.78, "harness": "claude-code" }
+```
+
+Events live at `~/.harness-downshift/events.jsonl`. Nothing leaves your machine.
+
+---
+
 ## Architecture
 
 ![Architecture](docs/img/architecture.svg?v=2)
@@ -546,6 +617,12 @@ The seed dataset has 30 tasks. The format is
 Add your own prompts and run again — real coding tasks from your stack are
 the highest-value contribution you can make to this project.
 
+To compare legacy vs the CapabilityRouter v2 classifier, use a dataset with `SMALL/MID/FRONTIER` labels and run:
+
+```bash
+downshift benchmark dataset.json --compare
+```
+
 ---
 
 ## Design principles
@@ -728,7 +805,10 @@ that actually need it.
 The router is built and tested: adapters for Claude Code, Cursor, and Codex,
 deterministic classifier covering 40+ documented prompts, catalog with
 version-agnostic family matching, OpenRouter normalisation, and
-`explicit_only` model preservation.
+`explicit_only` model preservation. The **CapabilityRouter v2** pipeline —
+13-signal extractor, deterministic safety floor, risk-weighted softmax
+classifier, offline training, and event collection — is complete and
+available via `downshift train` and `downshift benchmark --compare`.
 
 **The real gap is at the harness level, not in this tool.**
 Model selection for subagents is an evolving feature in every harness:
