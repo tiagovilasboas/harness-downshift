@@ -173,6 +173,11 @@ func (d Decision) ShouldRewriteModel() bool {
 	if d.Model.ID == "" {
 		return false
 	}
+	// An uncertain classifier result must never trigger an automatic downgrade.
+	// Keep the harness-selected model in place until the task has a clear signal.
+	if d.Verdict == VerdictDownshift && !d.Confident {
+		return false
+	}
 	return d.Verdict == VerdictDownshift || d.Verdict == VerdictUpshift || d.Verdict == VerdictUnknown
 }
 

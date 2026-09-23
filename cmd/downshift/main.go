@@ -21,6 +21,7 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/tiagovilasboas/harness-downshift/internal/adapters/claudecode"
 	"github.com/tiagovilasboas/harness-downshift/internal/adapters/codex"
@@ -99,8 +100,15 @@ func runHookAdapter[E any](
 	handle func(E) (any, string, core.Decision),
 	failOpen func(),
 ) int {
-	data, err := io.ReadAll(in)
+	// Harness hook payloads contain task text. Bound the read so a malformed or
+	// hostile stdin cannot make the persistent harness process exhaust memory.
+	const maxHookPayloadBytes = 1 << 20
+	data, err := io.ReadAll(io.LimitReader(in, maxHookPayloadBytes+1))
 	if err != nil {
+		failOpen()
+		return 0
+	}
+	if len(data) > maxHookPayloadBytes {
 		failOpen()
 		return 0
 	}
@@ -260,14 +268,14 @@ func runBenchmark(args []string) int {
 		return 2
 	}
 
+	if compare {
+		return runBenchmarkCompare(path)
+	}
+
 	tasks, err := benchmark.LoadDataset(path)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error loading dataset: %v\n", err)
 		return 1
-	}
-
-	if compare {
-		return runBenchmarkCompare(tasks, path)
 	}
 
 	results := benchmark.Run(tasks, os.Stderr)
@@ -278,15 +286,25 @@ func runBenchmark(args []string) int {
 
 // runBenchmarkCompare runs Legacy vs CapabilityRouter v2 side by side.
 // Uses the v2 training dataset format (SMALL/MID/FRONTIER labels).
-func runBenchmarkCompare(legacyTasks []benchmark.Task, path string) int {
+func runBenchmarkCompare(path string) int {
 	// Load dataset in v2 format (SMALL/MID/FRONTIER)
 	v2ds, err := training.LoadDataset(path)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error loading v2 dataset: %v\n", err)
 		return 1
 	}
+	if v2ds.Size() == 0 {
+		fmt.Fprintln(os.Stderr, "error: comparison dataset must contain at least one task")
+		return 2
+	}
 
-	// Legacy: run the existing benchmark
+	legacyTasks, err := legacyTasksForComparison(v2ds.Examples)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return 2
+	}
+
+	// Legacy: map equivalent tiers to the old classifier's label vocabulary.
 	legacyResults := benchmark.Run(legacyTasks, os.Stderr)
 
 	// v2: run the capability router classifier
@@ -363,6 +381,23 @@ func runBenchmarkCompare(legacyTasks []benchmark.Task, path string) int {
 	}
 
 	return 0
+}
+
+func legacyTasksForComparison(examples []training.Example) ([]benchmark.Task, error) {
+	labels := map[string]string{
+		"SMALL":    "TRIVIAL",
+		"MID":      "MEDIUM",
+		"FRONTIER": "COMPLEX",
+	}
+	tasks := make([]benchmark.Task, 0, len(examples))
+	for _, example := range examples {
+		label, ok := labels[strings.ToUpper(strings.TrimSpace(example.Label))]
+		if !ok {
+			return nil, fmt.Errorf("unsupported tier %q; use SMALL, MID, or FRONTIER", example.Label)
+		}
+		tasks = append(tasks, benchmark.Task{Prompt: example.Prompt, Label: label})
+	}
+	return tasks, nil
 }
 
 // runTrain trains the capability router v2 classifier on a labelled dataset.

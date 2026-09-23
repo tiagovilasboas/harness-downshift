@@ -67,6 +67,20 @@ func TestAppendAndRead_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestAppendTo_UsesPrivateFilePermissions(t *testing.T) {
+	path := tmpLog(t)
+	if err := telemetry.AppendTo(path, makeEvent("claude-code", "TRIVIAL", "DOWNSHIFT", 0.8)); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Errorf("event log permissions = %04o, want 0600", got)
+	}
+}
+
 func TestAppendMultiple_AllPresent(t *testing.T) {
 	path := tmpLog(t)
 	for i := 0; i < 5; i++ {

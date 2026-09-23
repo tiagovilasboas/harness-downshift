@@ -21,8 +21,8 @@ import (
 
 // Example represents a single training example.
 type Example struct {
-	Prompt   string            `json:"prompt"`
-	Label    string            `json:"label"`    // SMALL, MID, FRONTIER
+	Prompt   string               `json:"prompt"`
+	Label    string               `json:"label"`    // SMALL, MID, FRONTIER
 	Features domain.FeatureVector `json:"features"` // Optional: if absent, extracted automatically
 }
 
@@ -57,7 +57,10 @@ func LoadDataset(path string) (*Dataset, error) {
 
 	// Try object format first
 	var ds Dataset
-	if err := json.Unmarshal(data, &ds); err == nil && len(ds.Examples) > 0 {
+	if err := json.Unmarshal(data, &ds); err == nil && ds.Examples != nil {
+		if err := validateExamples(ds.Examples); err != nil {
+			return nil, err
+		}
 		return extractMissingFeatures(&ds), nil
 	}
 
@@ -66,9 +69,26 @@ func LoadDataset(path string) (*Dataset, error) {
 	if err := json.Unmarshal(data, &examples); err != nil {
 		return nil, fmt.Errorf("parsing dataset: %w", err)
 	}
+	if err := validateExamples(examples); err != nil {
+		return nil, err
+	}
 
 	ds = Dataset{Examples: examples}
 	return extractMissingFeatures(&ds), nil
+}
+
+func validateExamples(examples []Example) error {
+	for i, example := range examples {
+		switch strings.ToUpper(strings.TrimSpace(example.Label)) {
+		case "SMALL", "MID", "FRONTIER":
+		default:
+			return fmt.Errorf("invalid label %q at example %d: use SMALL, MID, or FRONTIER", example.Label, i+1)
+		}
+		if strings.TrimSpace(example.Prompt) == "" {
+			return fmt.Errorf("empty prompt at example %d", i+1)
+		}
+	}
+	return nil
 }
 
 // extractMissingFeatures ensures all examples have features extracted.

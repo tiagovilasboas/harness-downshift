@@ -86,14 +86,19 @@ func AppendTo(path string, ev Event) error {
 	mu.Lock()
 	defer mu.Unlock()
 
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
+	// Tighten permissions on existing logs too; OpenFile's mode only applies
+	// when creating a file, and event metadata can reveal model usage patterns.
+	if err := f.Chmod(0o600); err != nil {
+		return err
+	}
 
 	line, err := json.Marshal(ev)
 	if err != nil {

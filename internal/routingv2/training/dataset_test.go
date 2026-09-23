@@ -6,6 +6,7 @@ package training
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/tiagovilasboas/harness-downshift/internal/core"
@@ -22,7 +23,7 @@ func TestExample_Tier(t *testing.T) {
 		{"Mid", core.TierMid},
 		{"FRONTIER", core.TierFrontier},
 		{"frontier", core.TierFrontier},
-		{"unknown", core.TierMid}, // Default
+		{"unknown", core.TierMid}, // Tier helper remains fail-safe; loaders validate labels.
 	}
 
 	for _, tc := range tests {
@@ -30,6 +31,16 @@ func TestExample_Tier(t *testing.T) {
 		if got := ex.Tier(); got != tc.want {
 			t.Errorf("Example{Label: %q}.Tier() = %v, want %v", tc.label, got, tc.want)
 		}
+	}
+}
+
+func TestLoadDataset_RejectsUnknownLabel(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "dataset.json")
+	if err := os.WriteFile(path, []byte(`[{"prompt":"task","label":"UNKNOWN"}]`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadDataset(path); err == nil || !strings.Contains(err.Error(), "invalid label") {
+		t.Fatalf("LoadDataset error = %v, want invalid label error", err)
 	}
 }
 

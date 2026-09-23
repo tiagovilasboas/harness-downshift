@@ -20,6 +20,7 @@ import (
 	"github.com/tiagovilasboas/harness-downshift/internal/adapters/cursor"
 	"github.com/tiagovilasboas/harness-downshift/internal/catalog"
 	"github.com/tiagovilasboas/harness-downshift/internal/core"
+	"github.com/tiagovilasboas/harness-downshift/internal/routingv2/training"
 )
 
 // captureStdout redirects os.Stdout to a buffer for the duration of fn.
@@ -36,6 +37,33 @@ func captureStdout(fn func()) string {
 }
 
 var cmdCat = catalog.Load()
+
+func TestLegacyTasksForComparisonMapsV2Tiers(t *testing.T) {
+	tasks, err := legacyTasksForComparison([]training.Example{
+		{Prompt: "rename a variable", Label: "small"},
+		{Prompt: "add a field", Label: "MID"},
+		{Prompt: "rearchitect payments", Label: "FRONTIER"},
+	})
+	if err != nil {
+		t.Fatalf("legacyTasksForComparison() error = %v", err)
+	}
+	want := []string{"TRIVIAL", "MEDIUM", "COMPLEX"}
+	if len(tasks) != len(want) {
+		t.Fatalf("got %d tasks, want %d", len(tasks), len(want))
+	}
+	for i := range want {
+		if tasks[i].Label != want[i] {
+			t.Errorf("task %d label = %q, want %q", i, tasks[i].Label, want[i])
+		}
+	}
+}
+
+func TestLegacyTasksForComparisonRejectsUnknownTier(t *testing.T) {
+	_, err := legacyTasksForComparison([]training.Example{{Prompt: "task", Label: "UNKNOWN"}})
+	if err == nil {
+		t.Fatal("legacyTasksForComparison() expected an error for an unsupported tier")
+	}
+}
 
 // claudeCodeFrontierID returns the current frontier model ID for claude-code.
 func claudeCodeFrontierID() string { return cmdCat.ModelFor("claude-code", core.TierFrontier).ID }
@@ -267,5 +295,23 @@ func TestRunHookAdapter_MalformedJSON_FailOpen(t *testing.T) {
 	})
 	if !strings.Contains(out, `"permissionDecision":"allow"`) {
 		t.Errorf("fail-open must print allow; got:\n%s", out)
+	}
+}
+
+func TestRunHookAdapter_OversizedPayload_FailOpen(t *testing.T) {
+	payload := bytes.Repeat([]byte("x"), (1<<20)+1)
+	out := captureStdout(func() {
+		rc := runHookAdapter(
+			bytes.NewReader(payload),
+			func(b []byte) (claudecode.Event, error) { var e claudecode.Event; return e, json.Unmarshal(b, &e) },
+			func(e claudecode.Event) (any, string, core.Decision) { return claudecode.Handle(e, cmdCat) },
+			printAllow,
+		)
+		if rc != 0 {
+			t.Errorf("oversized payload must fail-open (rc=0), got %d", rc)
+		}
+	})
+	if !strings.Contains(out, `"permissionDecision":"allow"`) {
+		t.Errorf("oversized payload must print allow; got:\n%s", out)
 	}
 }
