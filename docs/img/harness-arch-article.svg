@@ -1,0 +1,111 @@
+<svg width="900" height="520" viewBox="0 0 900 520" xmlns="http://www.w3.org/2000/svg"
+     font-family="'SF Mono','Fira Code','Cascadia Code',ui-monospace,monospace">
+
+  <rect width="900" height="520" rx="12" fill="#0f172a"/>
+
+  <!-- ══ Title ══ -->
+  <text x="40" y="44" fill="#e2e8f0" font-size="16" font-weight="700">Três harness, uma memória</text>
+  <text x="40" y="62" fill="#475569" font-size="11">Logseq centraliza o contexto. Cada harness tem seu papel.</text>
+  <line x1="40" y1="76" x2="860" y2="76" stroke="#1e293b" stroke-width="1"/>
+
+  <!-- ══ Logseq (centro) ══ -->
+  <rect x="340" y="96" width="220" height="64" rx="10" fill="#374151" stroke="#6b7280" stroke-width="1.5"/>
+  <text x="450" y="122" fill="#f9fafb" font-size="22" text-anchor="middle">📚</text>
+  <text x="450" y="141" fill="#f9fafb" font-size="13" font-weight="700" text-anchor="middle">Logseq</text>
+  <text x="450" y="155" fill="#94a3b8" font-size="10" text-anchor="middle">RAG central · vault hub-first</text>
+
+  <!-- ══ Contexto Kiro (nó intermediário) ══ -->
+  <rect x="60" y="230" width="180" height="52" rx="8" fill="#dbeafe" stroke="#93c5fd" stroke-width="1.2"/>
+  <text x="150" y="253" fill="#1e3a5a" font-size="12" font-weight="700" text-anchor="middle">contexto Kiro</text>
+  <text x="150" y="268" fill="#1e40af" font-size="10" text-anchor="middle">agents · skills · MCPs · ~40 steerings</text>
+
+  <!-- ══ Contexto Cursor (nó intermediário) ══ -->
+  <rect x="340" y="230" width="220" height="52" rx="8" fill="#dbeafe" stroke="#93c5fd" stroke-width="1.2"/>
+  <text x="450" y="253" fill="#1e3a5a" font-size="12" font-weight="700" text-anchor="middle">contexto Cursor</text>
+  <text x="450" y="268" fill="#1e40af" font-size="10" text-anchor="middle">skills · MCPs · Graphify</text>
+
+  <!-- ══ Contexto ChatGPT (nó intermediário) ══ -->
+  <rect x="660" y="230" width="180" height="52" rx="8" fill="#dbeafe" stroke="#93c5fd" stroke-width="1.2"/>
+  <text x="750" y="253" fill="#1e3a5a" font-size="12" font-weight="700" text-anchor="middle">contexto ChatGPT</text>
+  <text x="750" y="268" fill="#1e40af" font-size="10" text-anchor="middle">manual · S3 bot</text>
+
+  <!-- Logseq → contexto Kiro (MCP, dashed) -->
+  <line x1="370" y1="160" x2="200" y2="230" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr-gray)"/>
+  <rect x="238" y="183" width="42" height="16" rx="3" fill="#0f172a"/>
+  <text x="259" y="194" fill="#94a3b8" font-size="9" text-anchor="middle">MCP</text>
+
+  <!-- Logseq → contexto Cursor (MCP, dashed) -->
+  <line x1="450" y1="160" x2="450" y2="230" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr-gray)"/>
+  <rect x="420" y="183" width="42" height="16" rx="3" fill="#0f172a"/>
+  <text x="441" y="194" fill="#94a3b8" font-size="9" text-anchor="middle">MCP</text>
+
+  <!-- Logseq → contexto ChatGPT (manual, dashed) -->
+  <line x1="530" y1="160" x2="700" y2="230" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr-gray)"/>
+  <rect x="602" y="183" width="50" height="16" rx="3" fill="#0f172a"/>
+  <text x="627" y="194" fill="#94a3b8" font-size="9" text-anchor="middle">manual</text>
+
+  <!-- ══ Kiro ══ -->
+  <rect x="60" y="338" width="180" height="56" rx="10" fill="#4c1d95" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="150" y="361" fill="#f5f3ff" font-size="18" text-anchor="middle">🔧</text>
+  <text x="150" y="378" fill="#f5f3ff" font-size="13" font-weight="700" text-anchor="middle">Kiro</text>
+  <text x="150" y="390" fill="#a78bfa" font-size="10" text-anchor="middle">trampo</text>
+
+  <!-- contexto Kiro → Kiro -->
+  <line x1="150" y1="282" x2="150" y2="338" stroke="#7c3aed" stroke-width="1.5" marker-end="url(#arr-purple)"/>
+
+  <!-- ══ Cursor ══ -->
+  <rect x="340" y="338" width="220" height="56" rx="10" fill="#1a1a1a" stroke="#6b7280" stroke-width="1.5"/>
+  <text x="450" y="361" fill="#f9fafb" font-size="18" text-anchor="middle">💻</text>
+  <text x="450" y="378" fill="#f9fafb" font-size="13" font-weight="700" text-anchor="middle">Cursor</text>
+  <text x="450" y="390" fill="#9ca3af" font-size="10" text-anchor="middle">dev · onde o Grok Bot vive</text>
+
+  <!-- contexto Cursor → Cursor -->
+  <line x1="450" y1="282" x2="450" y2="338" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr-gray)"/>
+
+  <!-- ══ ChatGPT ══ -->
+  <rect x="660" y="338" width="180" height="56" rx="10" fill="#ffffff" stroke="#6b7280" stroke-width="1.5"/>
+  <text x="750" y="361" fill="#000000" font-size="18" text-anchor="middle">💬</text>
+  <text x="750" y="378" fill="#111827" font-size="13" font-weight="700" text-anchor="middle">ChatGPT</text>
+  <text x="750" y="390" fill="#6b7280" font-size="10" text-anchor="middle">pessoal</text>
+
+  <!-- contexto ChatGPT → ChatGPT -->
+  <line x1="750" y1="282" x2="750" y2="338" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr-gray)"/>
+
+  <!-- ══ Grok Bot ══ -->
+  <rect x="330" y="440" width="240" height="56" rx="10" fill="#1f2937" stroke="#374151" stroke-width="1.5"/>
+  <text x="450" y="463" fill="#f9fafb" font-size="18" text-anchor="middle">🎯</text>
+  <text x="450" y="480" fill="#f9fafb" font-size="13" font-weight="700" text-anchor="middle">Grok Bot</text>
+  <text x="450" y="492" fill="#9ca3af" font-size="10" text-anchor="middle">orquestra dentro do Cursor</text>
+
+  <!-- Cursor → Grok Bot (contém) -->
+  <line x1="450" y1="394" x2="450" y2="440" stroke="#374151" stroke-width="1.5" marker-end="url(#arr-dark)"/>
+  <rect x="416" y="410" width="52" height="16" rx="3" fill="#0f172a"/>
+  <text x="442" y="421" fill="#9ca3af" font-size="9" text-anchor="middle">contém</text>
+
+  <!-- ══ Cloud Agents + Shell (saídas do Grok Bot) ══ -->
+  <rect x="80" y="440" width="200" height="48" rx="8" fill="#064e3b" stroke="#059669" stroke-width="1.5"/>
+  <text x="180" y="461" fill="#d1fae5" font-size="12" font-weight="700" text-anchor="middle">Cloud Agents</text>
+  <text x="180" y="476" fill="#6ee7b7" font-size="10" text-anchor="middle">PRs no GitHub</text>
+
+  <rect x="620" y="440" width="200" height="48" rx="8" fill="#064e3b" stroke="#059669" stroke-width="1.5"/>
+  <text x="720" y="461" fill="#d1fae5" font-size="12" font-weight="700" text-anchor="middle">Shell Mac</text>
+  <text x="720" y="476" fill="#6ee7b7" font-size="10" text-anchor="middle">CLI com aprovação</text>
+
+  <!-- Grok Bot → Cloud Agents -->
+  <line x1="370" y1="474" x2="280" y2="468" stroke="#059669" stroke-width="1.2" marker-end="url(#arr-green)"/>
+  <rect x="288" y="460" width="52" height="14" rx="3" fill="#0f172a"/>
+  <text x="314" y="470" fill="#059669" font-size="9" text-anchor="middle">executa</text>
+
+  <!-- Grok Bot → Shell -->
+  <line x1="530" y1="474" x2="620" y2="468" stroke="#059669" stroke-width="1.2" marker-end="url(#arr-green)"/>
+  <rect x="556" y="460" width="52" height="14" rx="3" fill="#0f172a"/>
+  <text x="582" y="470" fill="#059669" font-size="9" text-anchor="middle">executa</text>
+
+  <!-- ══ Arrow markers ══ -->
+  <defs>
+    <marker id="arr-gray"   markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#94a3b8"/></marker>
+    <marker id="arr-purple" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#7c3aed"/></marker>
+    <marker id="arr-dark"   markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#374151"/></marker>
+    <marker id="arr-green"  markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#059669"/></marker>
+  </defs>
+</svg>

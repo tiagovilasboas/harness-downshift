@@ -18,8 +18,8 @@
   <!-- Tagline line 1 -->
   <text x="52" y="128" fill="#8b949e" font-size="18">Right-sized models for every subagent task.</text>
 
-  <!-- Tagline line 2 — the gear metaphor -->
-  <text x="52" y="156" fill="#58a6ff" font-size="16" font-weight="600">Downshift on the straights. Power through the curves.</text>
+  <!-- Tagline line 2 -->
+  <text x="52" y="156" fill="#58a6ff" font-size="16" font-weight="600">Downshift your AI spend. Reserve frontier power for what needs it.</text>
 
   <line x1="52" y1="180" x2="560" y2="180" stroke="#21262d" stroke-width="1"/>
 

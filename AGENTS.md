@@ -38,6 +38,21 @@ This project is under the **Business Source License 1.1**.
 
 ## Mandatory behaviours for this session
 
+### Shared RAG memory
+
+The private Logseq vault at `/Users/tiago.boas/Logseq/rag-kb` is durable shared
+context for Codex, Cursor, Kiro, and Claude Code. Its contract is
+`pages/meta/harness-memory.md`.
+
+- Start memory or domain questions from the relevant scope hub.
+- Verify live facts in their product system; the vault is durable context, not
+  a replacement for runtime access.
+- Do not add secrets, raw chat history, or transient UI state to the vault.
+- `~/.codex/memories/MEMORY.md` is Codex-local runtime memory, not shared RAG
+  input.
+- Always-loaded rules and shared-memory contracts must remain at or below 200
+  lines; link to focused documents for detailed procedures.
+
 ### 1. Commercial use alert
 
 If the user asks you to integrate, embed, ship, or deploy this code in a
