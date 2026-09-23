@@ -20,8 +20,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/tiagovilasboas/harness-downshift/internal/adapters/claudecode"
 	"github.com/tiagovilasboas/harness-downshift/internal/adapters/codex"
@@ -54,6 +56,7 @@ func main() {
 			func(b []byte) (claudecode.Event, error) { var e claudecode.Event; return e, json.Unmarshal(b, &e) },
 			func(e claudecode.Event) (any, string, core.Decision) { return claudecode.Handle(e, cat) },
 			printAllow,
+			func(e claudecode.Event) string { return e.TaskText() },
 		))
 	case "cursor":
 		os.Exit(runHookAdapter(
@@ -61,6 +64,7 @@ func main() {
 			func(b []byte) (cursor.Event, error) { var e cursor.Event; return e, json.Unmarshal(b, &e) },
 			func(e cursor.Event) (any, string, core.Decision) { return cursor.Handle(e, cat) },
 			printCursorAllow,
+			func(e cursor.Event) string { return e.TaskText() },
 		))
 	case "codex":
 		os.Exit(runHookAdapter(
@@ -68,6 +72,7 @@ func main() {
 			func(b []byte) (codex.Event, error) { var e codex.Event; return e, json.Unmarshal(b, &e) },
 			func(e codex.Event) (any, string, core.Decision) { return codex.Handle(e, cat) },
 			printCodexAllow,
+			func(e codex.Event) string { return e.TaskText() },
 		))
 	case "try":
 		os.Exit(runTry(cat, args[1:]))
@@ -79,6 +84,8 @@ func main() {
 		os.Exit(runBenchmark(args[1:]))
 	case "train":
 		os.Exit(runTrain(args[1:]))
+	case "feedback":
+		os.Exit(runFeedback(args[1:]))
 	case "-h", "--help", "help":
 		usage()
 		os.Exit(0)
@@ -99,6 +106,7 @@ func runHookAdapter[E any](
 	parse func([]byte) (E, error),
 	handle func(E) (any, string, core.Decision),
 	failOpen func(),
+	taskText ...func(E) string,
 ) int {
 	// Harness hook payloads contain task text. Bound the read so a malformed or
 	// hostile stdin cannot make the persistent harness process exhaust memory.
@@ -129,6 +137,11 @@ func runHookAdapter[E any](
 	// A zero Decision (Harness == "") means the event was not a subagent spawn.
 	if decision.Harness != "" {
 		telemetry.Record(telemetry.FromDecision(decision))
+		if len(taskText) > 0 {
+			if id, err := training.RecordRoutedDecision(taskText[0](ev), decision); err == nil && id != "" {
+				fmt.Fprintf(os.Stderr, "downshift: feedback id %s (run `downshift feedback %s success|retry|failed` after review)\n", id, id)
+			}
+		}
 	}
 	return 0
 }
@@ -248,6 +261,7 @@ func runBenchmark(args []string) int {
 		fmt.Fprintln(os.Stderr, "")
 		fmt.Fprintln(os.Stderr, "The dataset is a JSON array of {\"prompt\":\"...\",\"label\":\"TRIVIAL|SIMPLE|MEDIUM|COMPLEX\"} objects.")
 		fmt.Fprintln(os.Stderr, "A seed dataset is available at benchmark/tasks.json in the repository.")
+		fmt.Fprintln(os.Stderr, "Use --compare --candidate-weights=<file> to evaluate a candidate without activating it.")
 		fmt.Fprintln(os.Stderr, "")
 		fmt.Fprintln(os.Stderr, "  --compare    Run both Legacy and CapabilityRouter v2 side by side")
 		return 2
@@ -255,9 +269,12 @@ func runBenchmark(args []string) int {
 
 	compare := false
 	path := ""
+	candidateWeights := ""
 	for _, arg := range args {
 		if arg == "--compare" {
 			compare = true
+		} else if strings.HasPrefix(arg, "--candidate-weights=") {
+			candidateWeights = strings.TrimPrefix(arg, "--candidate-weights=")
 		} else {
 			path = arg
 		}
@@ -269,7 +286,7 @@ func runBenchmark(args []string) int {
 	}
 
 	if compare {
-		return runBenchmarkCompare(path)
+		return runBenchmarkCompare(path, candidateWeights)
 	}
 
 	tasks, err := benchmark.LoadDataset(path)
@@ -286,7 +303,7 @@ func runBenchmark(args []string) int {
 
 // runBenchmarkCompare runs Legacy vs CapabilityRouter v2 side by side.
 // Uses the v2 training dataset format (SMALL/MID/FRONTIER labels).
-func runBenchmarkCompare(path string) int {
+func runBenchmarkCompare(path, candidateWeights string) int {
 	// Load dataset in v2 format (SMALL/MID/FRONTIER)
 	v2ds, err := training.LoadDataset(path)
 	if err != nil {
@@ -309,6 +326,14 @@ func runBenchmarkCompare(path string) int {
 
 	// v2: run the capability router classifier
 	clf := classifier.NewSoftmaxClassifierDefault()
+	if candidateWeights != "" {
+		weights, err := classifier.LoadWeightsFromFile(candidateWeights)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error loading candidate weights: %v\n", err)
+			return 1
+		}
+		clf = classifier.NewSoftmaxClassifier(weights)
+	}
 	v2Actual := make([]core.Tier, v2ds.Size())
 	v2Predicted := make([]core.Tier, v2ds.Size())
 
@@ -319,6 +344,10 @@ func runBenchmarkCompare(path string) int {
 	}
 
 	v2Metrics := training.Compute(v2Actual, v2Predicted)
+	classCounts := map[core.Tier]int{}
+	for _, tier := range v2Actual {
+		classCounts[tier]++
+	}
 
 	// Compute legacy metrics in v2 terms (map COMPLEX→FRONTIER, etc.)
 	legacyActual := make([]core.Tier, len(legacyResults))
@@ -341,9 +370,20 @@ func runBenchmarkCompare(path string) int {
 
 	// Print comparison
 	fmt.Fprintln(os.Stdout, "Benchmark: Legacy vs Capability Router v2")
+	if candidateWeights != "" {
+		fmt.Fprintf(os.Stdout, "Candidate weights: %s\n", candidateWeights)
+	}
 	fmt.Fprintf(os.Stdout, "Dataset: %d tasks\n\n", v2ds.Size())
+	fmt.Fprintf(os.Stdout, "Label support: SMALL=%d MID=%d FRONTIER=%d\n", classCounts[core.TierSmall], classCounts[core.TierMid], classCounts[core.TierFrontier])
+	if classCounts[core.TierSmall] < 5 || classCounts[core.TierMid] < 5 || classCounts[core.TierFrontier] < 5 {
+		fmt.Fprintln(os.Stdout, "Warning: fewer than 5 examples in at least one tier; treat this comparison as exploratory.")
+	}
 
-	fmt.Fprintf(os.Stdout, "%-35s %10s %10s %10s\n", "", "Legacy", "v2", "Delta")
+	modelLabel := "v2"
+	if candidateWeights != "" {
+		modelLabel = "Candidate"
+	}
+	fmt.Fprintf(os.Stdout, "%-35s %10s %10s %10s\n", "", "Legacy", modelLabel, "Delta")
 	fmt.Fprintf(os.Stdout, "%-35s %10.1f%% %10.1f%% %+9.1f%%\n",
 		"Tier accuracy",
 		legacyMetrics.Accuracy*100, v2Metrics.Accuracy*100,
@@ -380,6 +420,150 @@ func runBenchmarkCompare(path string) int {
 		fmt.Fprintln(os.Stdout, "                Collect more training data and re-run train + compare.")
 	}
 
+	return 0
+}
+
+// runFeedback records engineer-reviewed results without coupling the loop to
+// any harness completion protocol.
+func runFeedback(args []string) int {
+	if len(args) > 0 && args[0] == "stats" {
+		if len(args) != 1 {
+			fmt.Fprintln(os.Stderr, "usage: downshift feedback stats")
+			return 2
+		}
+		store := training.NewEventStore(training.DefaultEventsPath())
+		events, err := store.Load()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reading loop events: %v\n", err)
+			return 1
+		}
+		type counts struct{ pending, success, retry, failed, trainable int }
+		byHarness := make(map[string]counts)
+		for _, event := range events {
+			c := byHarness[event.Harness]
+			if event.Outcome != nil && event.Outcome.RequiredTier != nil {
+				c.trainable++
+			}
+			if event.Outcome == nil {
+				c.pending++
+			} else {
+				switch {
+				case event.Outcome.Success:
+					c.success++
+				case event.Outcome.Retry:
+					c.retry++
+				case event.Outcome.Failed:
+					c.failed++
+				}
+			}
+			byHarness[event.Harness] = c
+		}
+		if len(events) == 0 {
+			fmt.Fprintln(os.Stdout, "No routing events yet.")
+			return 0
+		}
+		fmt.Fprintf(os.Stdout, "%-16s %8s %8s %8s %8s %10s\n", "Harness", "Success", "Retry", "Failed", "Pending", "Trainable")
+		var names []string
+		for name := range byHarness {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			c := byHarness[name]
+			fmt.Fprintf(os.Stdout, "%-16s %8d %8d %8d %8d %10d\n", name, c.success, c.retry, c.failed, c.pending, c.trainable)
+		}
+		return 0
+	}
+	if len(args) == 0 || args[0] == "list" {
+		pendingOnly := len(args) == 2 && args[1] == "--pending"
+		if len(args) > 2 || (len(args) == 2 && !pendingOnly) {
+			fmt.Fprintln(os.Stderr, "usage: downshift feedback list [--pending] | stats")
+			return 2
+		}
+		store := training.NewEventStore(training.DefaultEventsPath())
+		events, err := store.Load()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reading loop events: %v\n", err)
+			return 1
+		}
+		if len(events) == 0 {
+			fmt.Fprintln(os.Stdout, "No routing events yet. Run a subagent task through a configured harness first.")
+			return 0
+		}
+		shown := 0
+		for i := len(events) - 1; i >= 0 && shown < 50; i-- {
+			event := events[i]
+			if pendingOnly && event.Outcome != nil {
+				continue
+			}
+			outcome := "pending"
+			if event.Outcome != nil {
+				switch {
+				case event.Outcome.Success:
+					outcome = "success"
+				case event.Outcome.Retry:
+					outcome = "retry → " + event.Outcome.RetryTier.String()
+				case event.Outcome.Failed:
+					outcome = "failed"
+				}
+			}
+			fmt.Fprintf(os.Stdout, "%s  %-10s %-8s %-14s %s\n", event.ID, event.Harness, event.SelectedTier, outcome, event.Timestamp.Format(time.RFC3339))
+			shown++
+		}
+		return 0
+	}
+	if len(args) < 2 {
+		fmt.Fprintln(os.Stderr, "usage: downshift feedback list [--pending] | stats | <id> <success|retry|failed> [--retry-tier=MID|FRONTIER] [--required-tier=SMALL|MID|FRONTIER]")
+		return 2
+	}
+	outcome := training.Outcome{}
+	switch args[1] {
+	case "success":
+		outcome.Success = true
+	case "retry":
+		outcome.Retry = true
+	case "failed":
+		outcome.Failed = true
+	default:
+		fmt.Fprintf(os.Stderr, "unknown outcome %q; use success, retry, or failed\n", args[1])
+		return 2
+	}
+	for _, arg := range args[2:] {
+		if strings.HasPrefix(arg, "--retry-tier=") {
+			switch strings.ToUpper(strings.TrimPrefix(arg, "--retry-tier=")) {
+			case "MID":
+				outcome.RetryTier = core.TierMid
+			case "FRONTIER":
+				outcome.RetryTier = core.TierFrontier
+			default:
+				fmt.Fprintln(os.Stderr, "retry tier must be MID or FRONTIER")
+				return 2
+			}
+		} else if strings.HasPrefix(arg, "--required-tier=") {
+			var required core.Tier
+			switch strings.ToUpper(strings.TrimPrefix(arg, "--required-tier=")) {
+			case "SMALL":
+				required = core.TierSmall
+			case "MID":
+				required = core.TierMid
+			case "FRONTIER":
+				required = core.TierFrontier
+			default:
+				fmt.Fprintln(os.Stderr, "required tier must be SMALL, MID, or FRONTIER")
+				return 2
+			}
+			outcome.RequiredTier = &required
+		} else {
+			fmt.Fprintf(os.Stderr, "unknown feedback option %q\n", arg)
+			return 2
+		}
+	}
+	store := training.NewEventStore(training.DefaultEventsPath())
+	if err := store.AddOutcome(args[0], outcome); err != nil {
+		fmt.Fprintf(os.Stderr, "error recording feedback: %v\n", err)
+		return 1
+	}
+	fmt.Fprintf(os.Stdout, "Feedback recorded for %s. Train a candidate with `downshift train --from-events --output=candidate.json`.\n", args[0])
 	return 0
 }
 
@@ -461,13 +645,20 @@ func runTrain(args []string) int {
 	if fromEvents {
 		eventsPath := training.DefaultEventsPath()
 		fmt.Fprintf(os.Stdout, "Source:  events file (%s)\n", eventsPath)
-		result, err = training.TrainFromEvents(eventsPath, config)
+		store := training.NewEventStore(eventsPath)
+		if _, err = store.Load(); err == nil {
+			labeled := store.ToDataset()
+			fmt.Fprintf(os.Stdout, "Reviewed minimum-tier labels: %d\n", labeled.Size())
+			trainDS, valDS := labeled.Split(validationSplit)
+			fmt.Fprintf(os.Stdout, "Train/Val: %d / %d\n\n", trainDS.Size(), valDS.Size())
+			result = training.Train(trainDS, valDS, config)
+		}
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error loading events: %v\n", err)
 			return 1
 		}
 		if result.Weights == nil {
-			fmt.Fprintln(os.Stderr, "no events with outcomes yet — run tasks first, then re-train")
+			fmt.Fprintln(os.Stderr, "no reviewed minimum-tier labels yet — add --required-tier=SMALL|MID|FRONTIER when recording feedback")
 			return 1
 		}
 	} else {
@@ -505,8 +696,8 @@ func runTrain(args []string) int {
 
 	fmt.Fprintf(os.Stdout, "Weights saved to: %s\n", outputPath)
 	fmt.Fprintln(os.Stdout, "")
-	fmt.Fprintf(os.Stdout, "To activate: cp %s ~/.harness-downshift/weights.json\n", outputPath)
-	fmt.Fprintln(os.Stdout, "To compare:  downshift benchmark <dataset> --compare")
+	fmt.Fprintf(os.Stdout, "To evaluate: downshift benchmark <holdout.json> --compare --candidate-weights=%s\n", outputPath)
+	fmt.Fprintln(os.Stdout, "Candidate weights are not activated automatically; review safety and quality metrics before promotion.")
 	return 0
 }
 
@@ -542,7 +733,10 @@ Usage:
   downshift benchmark <file>     Run classifier against a labelled dataset; print confusion matrix
   downshift benchmark <file> --compare  Compare Legacy vs CapabilityRouter v2 side by side
   downshift train <file>         Train capability-router v2 on a labelled dataset
-  downshift train --from-events  Train from collected routing events
+  downshift train --from-events  Train from engineer-reviewed local feedback
+  downshift feedback list        List routing IDs awaiting engineer review
+  downshift feedback stats       Summarize outcomes per harness
+  downshift feedback <id> <outcome>  Record success, retry, or failed
 
 Grok note:
   Grok routes subagent models via config, not a hook (its PreToolUse is

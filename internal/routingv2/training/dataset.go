@@ -11,6 +11,8 @@ package training
 import (
 	"encoding/json"
 	"fmt"
+	"math"
+	"math/rand"
 	"os"
 	"strings"
 
@@ -87,6 +89,18 @@ func validateExamples(examples []Example) error {
 		if strings.TrimSpace(example.Prompt) == "" {
 			return fmt.Errorf("empty prompt at example %d", i+1)
 		}
+		if err := validateFeatures(example.Features); err != nil {
+			return fmt.Errorf("invalid features at example %d: %w", i+1, err)
+		}
+	}
+	return nil
+}
+
+func validateFeatures(features domain.FeatureVector) error {
+	for i, value := range features.AsSlice() {
+		if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 || value > 1 {
+			return fmt.Errorf("feature %d must be finite and between 0 and 1", i)
+		}
 	}
 	return nil
 }
@@ -112,26 +126,40 @@ func isZeroFeatures(fv domain.FeatureVector) bool {
 	return true
 }
 
-// Split divides the dataset into training and validation sets.
-// validationRatio should be in (0, 1).
+// Split deterministically stratifies examples by tier before separating the
+// validation sample, so class imbalance or source ordering cannot silently
+// remove a tier from validation. A tier with one example stays in training.
 func (ds *Dataset) Split(validationRatio float64) (train, val *Dataset) {
 	if validationRatio <= 0 || validationRatio >= 1 {
 		return ds, &Dataset{}
 	}
 
-	n := len(ds.Examples)
-	valSize := int(float64(n) * validationRatio)
-	if valSize < 1 {
-		valSize = 1
+	byTier := map[core.Tier][]Example{
+		core.TierSmall: {}, core.TierMid: {}, core.TierFrontier: {},
 	}
-	if valSize >= n {
-		valSize = n - 1
+	for _, example := range ds.Examples {
+		byTier[example.Tier()] = append(byTier[example.Tier()], example)
 	}
-
-	// Simple split (not stratified — could improve later)
-	trainExamples := ds.Examples[:n-valSize]
-	valExamples := ds.Examples[n-valSize:]
-
+	trainExamples := make([]Example, 0, len(ds.Examples))
+	valExamples := make([]Example, 0, len(ds.Examples))
+	for _, tier := range []core.Tier{core.TierSmall, core.TierMid, core.TierFrontier} {
+		examples := byTier[tier]
+		if len(examples) > 1 {
+			seed := int64(tier) + 41
+			rand.New(rand.NewSource(seed)).Shuffle(len(examples), func(i, j int) {
+				examples[i], examples[j] = examples[j], examples[i]
+			})
+		}
+		count := int(float64(len(examples)) * validationRatio)
+		if len(examples) > 1 && count == 0 {
+			count = 1
+		}
+		if len(examples) > 1 && count >= len(examples) {
+			count = len(examples) - 1
+		}
+		valExamples = append(valExamples, examples[:count]...)
+		trainExamples = append(trainExamples, examples[count:]...)
+	}
 	return &Dataset{Examples: trainExamples}, &Dataset{Examples: valExamples}
 }
 

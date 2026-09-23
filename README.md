@@ -358,11 +358,22 @@ downshift train dataset.json
 # Or train from collected routing events (privacy-first: features only, no prompts)
 downshift train --from-events
 
-# Compare legacy vs v2 side by side
-downshift benchmark dataset.json --compare
+# Record a reviewed outcome for any harness by using the ID printed by the hook
+downshift feedback list --pending
+downshift feedback stats
+downshift feedback <id> success --required-tier=MID
+# Or record a retry/failure; retry tier describes which stronger tier ran.
+downshift feedback <id> retry --retry-tier=FRONTIER
+downshift feedback <id> failed
 
-# Activate when v2 metrics are better
-cp weights.json ~/.harness-downshift/weights.json
+# Train a candidate from explicitly reviewed local feedback
+downshift train --from-events --output=candidate.json
+
+# Evaluate candidate weights on an independent labelled holdout
+downshift benchmark holdout.json --compare --candidate-weights=candidate.json
+
+# Promotion stays manual after reviewing safety and quality metrics
+cp candidate.json ~/.harness-downshift/weights.json
 ```
 
 ### Dataset format
@@ -402,10 +413,19 @@ The go/no-go criterion: **`FRONTIER→SMALL` must fall vs legacy**. Everything e
 When collecting routing events for training, only the extracted **feature vector** is stored — never the raw prompt. Each event is:
 
 ```json
-{ "timestamp": "...", "features": {...}, "selected_tier": 2, "confidence": 0.78, "harness": "claude-code" }
+{ "record_type": "decision", "id": "<opaque-id>", "timestamp": "...", "features": {...}, "selected_tier": 2, "confident": true, "harness": "claude-code" }
 ```
 
-Events live at `~/.harness-downshift/events.jsonl`. Nothing leaves your machine.
+Loop events live at `~/.harness-downshift/loop-events.jsonl`. Nothing leaves your machine.
+The event log stores derived features, routing metadata, and reviewed outcomes;
+it never stores raw task prompts. Feedback IDs work across Claude Code, Cursor,
+and Codex because review is done by the shared CLI, not a harness-specific API.
+
+`success` records that a run completed; `retry` can record a stronger retry tier;
+`failed` records an unusable result. These outcomes alone do not create training
+labels: add `--required-tier=SMALL|MID|FRONTIER` only when an engineer has
+reviewed the minimum tier. This avoids treating “worked” as proof that a model
+was the cheapest adequate choice. Candidate evaluation never activates weights.
 
 ---
 

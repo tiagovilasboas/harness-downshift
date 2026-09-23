@@ -16,6 +16,13 @@ import (
 // cat is the shared test resolver — same embedded catalog the binary uses.
 var cat = catalog.Load()
 
+func TestEventTaskText(t *testing.T) {
+	ev := claudecode.Event{ToolInput: json.RawMessage(`{"prompt":"private task"}`)}
+	if got := ev.TaskText(); got != "private task" {
+		t.Fatalf("TaskText() = %q", got)
+	}
+}
+
 func catID(tier core.Tier) string {
 	return cat.ModelFor("claude-code", tier).ID
 }
@@ -121,8 +128,8 @@ func TestHandle_IgnoresNonTaskTools(t *testing.T) {
 func TestHandle_FallsBackToSessionModel(t *testing.T) {
 	frontierID := catID(core.TierFrontier)
 	ev := claudecode.Event{
-		ToolName: "Task",
-		Model:    frontierID, // session model, no model on tool input
+		ToolName:  "Task",
+		Model:     frontierID, // session model, no model on tool input
 		ToolInput: json.RawMessage(`{"prompt": "fix a typo in the readme"}`),
 	}
 	out, note, _ := claudecode.Handle(ev, cat)
@@ -139,8 +146,8 @@ func TestHandle_FallsBackToSessionModel(t *testing.T) {
 func TestHandle_AgentToolAlias(t *testing.T) {
 	frontierID := catID(core.TierFrontier)
 	ev := claudecode.Event{
-		ToolName: "Agent",
-		Model:    frontierID,
+		ToolName:  "Agent",
+		Model:     frontierID,
 		ToolInput: json.RawMessage(`{"prompt": "rename the variable", "model": "` + frontierID + `"}`),
 	}
 	_, note, _ := claudecode.Handle(ev, cat)

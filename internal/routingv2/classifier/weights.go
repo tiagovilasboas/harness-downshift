@@ -6,6 +6,8 @@ package classifier
 import (
 	"embed"
 	"encoding/json"
+	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"time"
@@ -19,9 +21,9 @@ var embeddedWeights embed.FS
 // Weights holds the trained parameters for the softmax classifier.
 // Structure: weights[tier][feature] + bias[tier]
 type Weights struct {
-	Version string      `json:"version"`
-	Small   TierWeights `json:"small"`
-	Mid     TierWeights `json:"mid"`
+	Version  string      `json:"version"`
+	Small    TierWeights `json:"small"`
+	Mid      TierWeights `json:"mid"`
 	Frontier TierWeights `json:"frontier"`
 }
 
@@ -29,7 +31,7 @@ type Weights struct {
 type TierWeights struct {
 	// Weights for each of the 13 features in canonical order
 	W    [domain.NumFeatures]float64 `json:"w"`
-	Bias float64                      `json:"bias"`
+	Bias float64                     `json:"bias"`
 }
 
 // LoadWeights loads weights with the following precedence:
@@ -42,7 +44,7 @@ func LoadWeights() (*Weights, error) {
 		userPath := filepath.Join(home, ".harness-downshift", "weights.json")
 		if data, err := os.ReadFile(userPath); err == nil {
 			var w Weights
-			if err := json.Unmarshal(data, &w); err == nil {
+			if err := json.Unmarshal(data, &w); err == nil && w.Validate() == nil {
 				return &w, nil
 			}
 		}
@@ -63,6 +65,9 @@ func LoadEmbeddedWeights() (*Weights, error) {
 	if err := json.Unmarshal(data, &w); err != nil {
 		return nil, err
 	}
+	if err := w.Validate(); err != nil {
+		return nil, err
+	}
 	return &w, nil
 }
 
@@ -77,11 +82,36 @@ func LoadWeightsFromFile(path string) (*Weights, error) {
 	if err := json.Unmarshal(data, &w); err != nil {
 		return nil, err
 	}
+	if err := w.Validate(); err != nil {
+		return nil, err
+	}
 	return &w, nil
+}
+
+// Validate rejects non-finite or extreme coefficients before they can turn
+// classifier scores into NaN/Inf and silently corrupt routing decisions.
+func (w *Weights) Validate() error {
+	if w == nil {
+		return fmt.Errorf("weights are nil")
+	}
+	for tierName, tier := range map[string]TierWeights{"small": w.Small, "mid": w.Mid, "frontier": w.Frontier} {
+		if math.IsNaN(tier.Bias) || math.IsInf(tier.Bias, 0) || math.Abs(tier.Bias) > 1e6 {
+			return fmt.Errorf("invalid %s bias", tierName)
+		}
+		for i, value := range tier.W {
+			if math.IsNaN(value) || math.IsInf(value, 0) || math.Abs(value) > 1e6 {
+				return fmt.Errorf("invalid %s weight at feature %d", tierName, i)
+			}
+		}
+	}
+	return nil
 }
 
 // SaveWeights saves weights to a file with current timestamp as version.
 func SaveWeights(w *Weights, path string) error {
+	if err := w.Validate(); err != nil {
+		return err
+	}
 	w.Version = time.Now().UTC().Format(time.RFC3339)
 
 	data, err := json.MarshalIndent(w, "", "  ")
@@ -91,11 +121,31 @@ func SaveWeights(w *Weights, path string) error {
 
 	// Ensure directory exists
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
-
-	return os.WriteFile(path, data, 0644)
+	tmp, err := os.CreateTemp(dir, ".weights-*")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+	defer os.Remove(tmpPath)
+	if err := tmp.Chmod(0600); err != nil {
+		tmp.Close()
+		return err
+	}
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, path)
 }
 
 // DefaultWeights returns reasonable initial weights for cold start.

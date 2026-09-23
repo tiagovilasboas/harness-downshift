@@ -109,6 +109,7 @@ internal/adapters/
   codex/             — PreToolUse + spawn_agent + updatedInput.model + reasoning_effort
 
 internal/hookutil/   — shared utilities (StringField)
+internal/routingv2/training/ — prompt-free route outcomes, offline training, metrics
 
 cmd/downshift/       — binary entry point, hook runners, try subcommand,
                        models list/check/pull dispatch
@@ -121,6 +122,13 @@ cmd/downshift/       — binary entry point, hook runners, try subcommand,
   current subagent already runs one, `Plan()` sets `PreserveExplicit=true`.
 - `updatedInput` preserves all sibling fields — only `model` and
   `reasoning_effort` are mutated.
+- Every adapter exposes task text to the shared loop only for in-memory feature
+  extraction; raw prompts are never persisted.
+- Feedback and training stay harness-agnostic. Harnesses report routing IDs;
+  engineer-reviewed outcomes are recorded through the shared CLI.
+- Binary outcomes alone do not establish minimum model tier. Only explicit
+  reviewed `required_tier` labels enter supervised training.
+- Candidate weights are evaluated separately and are never auto-activated.
 
 ---
 

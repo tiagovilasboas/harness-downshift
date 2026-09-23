@@ -137,6 +137,43 @@ func TestDataset_Split(t *testing.T) {
 	}
 }
 
+func TestDataset_SplitIsStratifiedAndDeterministic(t *testing.T) {
+	var examples []Example
+	for _, label := range []string{"SMALL", "MID", "FRONTIER"} {
+		for i := 0; i < 10; i++ {
+			examples = append(examples, Example{Prompt: label + string(rune('A'+i)), Label: label})
+		}
+	}
+	ds := &Dataset{Examples: examples}
+	train, val := ds.Split(0.2)
+	train2, val2 := ds.Split(0.2)
+	if train.Size() != 24 || val.Size() != 6 {
+		t.Fatalf("split sizes = %d/%d, want 24/6", train.Size(), val.Size())
+	}
+	for _, label := range []string{"SMALL", "MID", "FRONTIER"} {
+		trainCount, valCount := 0, 0
+		for _, ex := range train.Examples {
+			if ex.Label == label {
+				trainCount++
+			}
+		}
+		for _, ex := range val.Examples {
+			if ex.Label == label {
+				valCount++
+			}
+		}
+		if trainCount != 8 || valCount != 2 {
+			t.Errorf("%s distribution = %d/%d, want 8/2", label, trainCount, valCount)
+		}
+	}
+	for i := range val.Examples {
+		if val.Examples[i].Prompt != val2.Examples[i].Prompt {
+			t.Fatal("validation split is not deterministic")
+		}
+	}
+	_ = train2
+}
+
 func TestDataset_Split_EdgeCases(t *testing.T) {
 	ds := &Dataset{
 		Examples: make([]Example, 10),

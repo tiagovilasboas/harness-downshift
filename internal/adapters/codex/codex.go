@@ -32,6 +32,20 @@ type Event struct {
 	Model         string          `json:"model"`
 }
 
+// TaskText returns task content for local feature extraction. Raw text is
+// never returned from the shared loop's persistence layer.
+func (ev Event) TaskText() string {
+	var ti map[string]any
+	if json.Unmarshal(ev.ToolInput, &ti) != nil {
+		return ""
+	}
+	message := hookutil.StringField(ti, "message")
+	if taskName := hookutil.StringField(ti, "task_name"); taskName != "" {
+		message = strings.TrimSpace(message + " " + taskName)
+	}
+	return message
+}
+
 // Output is the JSON we print on stdout to steer Codex's PreToolUse.
 type Output struct {
 	HookSpecificOutput *HookSpecificOutput `json:"hookSpecificOutput,omitempty"`

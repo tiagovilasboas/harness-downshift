@@ -4,8 +4,11 @@
 package training
 
 import (
+	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -58,11 +61,87 @@ func TestEventStore_RecordAndLoad(t *testing.T) {
 	}
 }
 
+func TestEventStore_AddOutcomeAndReplayLatestFeedback(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "events.jsonl")
+	store := NewEventStore(path)
+	event := Event{ID: "route-1", Timestamp: time.Now().UTC(), Features: domain.FeatureVector{Security: 0.8}, SelectedTier: core.TierSmall, Harness: "codex"}
+	if err := store.Record(event); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.AddOutcome(event.ID, Outcome{Success: true}); err != nil {
+		t.Fatal(err)
+	}
+	required := core.TierFrontier
+	if err := store.AddOutcome(event.ID, Outcome{Retry: true, RetryTier: core.TierFrontier, RequiredTier: &required}); err != nil {
+		t.Fatal(err)
+	}
+
+	reloaded := NewEventStore(path)
+	events, err := reloaded.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 || events[0].Outcome == nil || !events[0].Outcome.Retry || events[0].Outcome.RetryTier != core.TierFrontier {
+		t.Fatalf("replayed events = %#v, want latest retry outcome", events)
+	}
+	if got := reloaded.ToDataset(); got.Size() != 1 || got.Examples[0].Label != "FRONTIER" {
+		t.Fatalf("training dataset = %#v, want one FRONTIER example", got.Examples)
+	}
+}
+
+func TestEventStore_AddOutcomeValidatesReview(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "events.jsonl")
+	store := NewEventStore(path)
+	if err := store.Record(Event{ID: "route-2", SelectedTier: core.TierMid}); err != nil {
+		t.Fatal(err)
+	}
+	for _, outcome := range []Outcome{
+		{},
+		{Retry: true},
+		{Retry: true, RetryTier: core.TierSmall},
+		{Success: true, Failed: true},
+	} {
+		if err := store.AddOutcome("route-2", outcome); err == nil {
+			t.Errorf("AddOutcome(%+v) succeeded, want validation error", outcome)
+		}
+	}
+	if err := store.AddOutcome("missing", Outcome{Success: true}); err == nil {
+		t.Fatal("unknown event ID should be rejected")
+	}
+}
+
+func TestRecordRoutedDecisionDoesNotPersistPrompt(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	prompt := "private customer incident token=secret"
+	id, err := RecordRoutedDecision(prompt, core.Decision{Harness: "codex", Tier: core.TierFrontier, Confident: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(id) != 32 {
+		t.Fatalf("feedback id length = %d, want 32", len(id))
+	}
+	data, err := os.ReadFile(DefaultEventsPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), prompt) || strings.Contains(string(data), "secret") {
+		t.Fatal("raw prompt material must not be persisted")
+	}
+	var event Event
+	if err := json.Unmarshal(bytes.TrimSpace(data), &event); err != nil {
+		t.Fatal(err)
+	}
+	if event.ID != id || event.Harness != "codex" || event.SelectedTier != core.TierFrontier || !event.Confident {
+		t.Fatalf("stored event = %+v", event)
+	}
+}
+
 func TestEventStore_ToDataset(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "events.jsonl")
 
 	store := NewEventStore(path)
+	smallRequired := core.TierSmall
 
 	// Event with success outcome
 	e1 := Event{
@@ -70,20 +149,23 @@ func TestEventStore_ToDataset(t *testing.T) {
 		Features:     domain.FeatureVector{Mechanical: 0.9},
 		SelectedTier: core.TierSmall,
 		Outcome: &Outcome{
-			Timestamp: time.Now().UTC(),
-			Success:   true,
+			Timestamp:    time.Now().UTC(),
+			Success:      true,
+			RequiredTier: &smallRequired,
 		},
 	}
 
 	// Event with retry outcome (should learn from retry tier)
+	frontierRequired := core.TierFrontier
 	e2 := Event{
 		Timestamp:    time.Now().UTC(),
 		Features:     domain.FeatureVector{Security: 0.7},
 		SelectedTier: core.TierSmall,
 		Outcome: &Outcome{
-			Timestamp: time.Now().UTC(),
-			Retry:     true,
-			RetryTier: core.TierFrontier,
+			Timestamp:    time.Now().UTC(),
+			Retry:        true,
+			RetryTier:    core.TierFrontier,
+			RequiredTier: &frontierRequired,
 		},
 	}
 
@@ -156,8 +238,8 @@ func TestDefaultEventsPath(t *testing.T) {
 	}
 
 	// Should contain the filename
-	if filepath.Base(path) != "events.jsonl" {
-		t.Errorf("DefaultEventsPath should end with events.jsonl, got %s", path)
+	if filepath.Base(path) != "loop-events.jsonl" {
+		t.Errorf("DefaultEventsPath should end with loop-events.jsonl, got %s", path)
 	}
 }
 
@@ -214,13 +296,15 @@ func TestTrainFromEvents(t *testing.T) {
 	// Add events with outcomes
 	for i := 0; i < 10; i++ {
 		tier := core.Tier(i % 3)
+		required := tier
 		e := Event{
 			Timestamp:    time.Now().UTC(),
 			Features:     domain.FeatureVector{Coding: float64(i) / 10},
 			SelectedTier: tier,
 			Outcome: &Outcome{
-				Timestamp: time.Now().UTC(),
-				Success:   true,
+				Timestamp:    time.Now().UTC(),
+				Success:      true,
+				RequiredTier: &required,
 			},
 		}
 		store.Record(e)

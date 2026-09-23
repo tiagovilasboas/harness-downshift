@@ -15,6 +15,13 @@ import (
 
 var cat = catalog.Load()
 
+func TestEventTaskText(t *testing.T) {
+	ev := cursor.Event{ToolInput: json.RawMessage(`{"task":"private task"}`)}
+	if got := ev.TaskText(); got != "private task" {
+		t.Fatalf("TaskText() = %q", got)
+	}
+}
+
 func catID(tier core.Tier) string {
 	return cat.ModelFor("cursor", tier).ID
 }
@@ -134,8 +141,8 @@ func TestHandle_FallsBackToPromptField(t *testing.T) {
 func TestHandle_FallsBackToEventModel(t *testing.T) {
 	frontierID := catID(core.TierFrontier)
 	ev := cursor.Event{
-		ToolName: "Task",
-		ModelID:  frontierID,
+		ToolName:  "Task",
+		ModelID:   frontierID,
 		ToolInput: json.RawMessage(`{"task": "rename the variable"}`),
 	}
 	out, note, _ := cursor.Handle(ev, cat)

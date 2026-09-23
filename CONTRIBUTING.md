@@ -44,6 +44,7 @@ internal/adapters/<harness>/   # one adapter per harness
   cursor/                      #   preToolUse + updated_input for Cursor
   codex/                       #   PreToolUse + updatedInput + reasoning_effort for Codex
 internal/hookutil/             # shared utilities (StringField)
+internal/routingv2/training/   # local prompt-free loop events and offline learning
 internal/models/               # models subcommands (list, check, pull)
 ```
 
@@ -57,8 +58,16 @@ Use `internal/adapters/claudecode/` as the template. An adapter:
 1. Decodes the harness's subagent-spawn event.
 2. Extracts the subagent's task text and current model ID.
 3. Calls `core.Route(prompt, harnessID, currentModelID, resolver)`.
-4. Translates the returned `core.Decision` into the harness's mechanism.
-5. **Fails open** — any error returns an allow decision and exits 0.
+4. Exposes `Event.TaskText()` so the shared runner can derive local features;
+   never persist the raw task text.
+5. Translates the returned `core.Decision` into the harness's mechanism.
+6. **Fails open** — any error returns an allow decision and exits 0.
+
+The shared hook runner records an opaque review ID for every real routing
+decision. Do not add harness-specific training or completion behavior. Manual
+reviews use `downshift feedback`; only explicit `--required-tier` labels are
+training targets, and candidate weights must be evaluated before manual
+activation.
 
 Then:
 - Add catalog entries for the new harness in `internal/catalog/catalog.json`

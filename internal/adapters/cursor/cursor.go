@@ -28,6 +28,16 @@ type Event struct {
 	ModelID       string          `json:"model_id"`
 }
 
+// TaskText returns the task content used for local, prompt-free feature
+// extraction by the shared engineering loop.
+func (ev Event) TaskText() string {
+	var ti map[string]any
+	if json.Unmarshal(ev.ToolInput, &ti) != nil {
+		return ""
+	}
+	return hookutil.TaskText(ti, "task", "prompt", "description")
+}
+
 // Output is the JSON we print on stdout to steer Cursor's preToolUse.
 type Output struct {
 	Permission   string          `json:"permission"`
@@ -49,13 +59,7 @@ func Handle(ev Event, r ...core.Resolver) (Output, string, core.Decision) {
 		return allow(), "", core.Decision{}
 	}
 
-	subPrompt := hookutil.StringField(ti, "task")
-	if subPrompt == "" {
-		subPrompt = hookutil.StringField(ti, "prompt")
-	}
-	if subPrompt == "" {
-		subPrompt = hookutil.StringField(ti, "description")
-	}
+	subPrompt := hookutil.TaskText(ti, "task", "prompt", "description")
 	if subPrompt == "" {
 		return allow(), "", core.Decision{}
 	}

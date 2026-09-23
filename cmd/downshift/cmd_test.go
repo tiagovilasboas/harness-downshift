@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/tiagovilasboas/harness-downshift/internal/adapters/cursor"
 	"github.com/tiagovilasboas/harness-downshift/internal/catalog"
 	"github.com/tiagovilasboas/harness-downshift/internal/core"
+	"github.com/tiagovilasboas/harness-downshift/internal/routingv2/classifier"
 	"github.com/tiagovilasboas/harness-downshift/internal/routingv2/training"
 )
 
@@ -281,6 +283,36 @@ func TestRunHookAdapter_Codex_Downshift(t *testing.T) {
 	}
 }
 
+func TestHookDecisionRecordsFeedbackWithoutPrompt(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	frontierID := cmdCat.ModelFor("codex", core.TierFrontier).ID
+	privatePrompt := "review private incident token abc123"
+	event := []byte(`{"hook_event_name":"PreToolUse","tool_name":"spawn_agent","model":"` + frontierID + `","tool_input":{"message":"` + privatePrompt + `"}}`)
+	captureStdout(func() {
+		runHookAdapter(
+			bytes.NewReader(event),
+			func(b []byte) (codex.Event, error) { var e codex.Event; return e, json.Unmarshal(b, &e) },
+			func(e codex.Event) (any, string, core.Decision) { return codex.Handle(e, cmdCat) },
+			printCodexAllow,
+			func(e codex.Event) string { return e.TaskText() },
+		)
+	})
+	data, err := os.ReadFile(training.DefaultEventsPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), privatePrompt) || strings.Contains(string(data), "abc123") {
+		t.Fatal("hook feedback log persisted raw prompt content")
+	}
+	events, err := training.NewEventStore(training.DefaultEventsPath()).Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 || events[0].ID == "" || events[0].Harness != "codex" {
+		t.Fatalf("expected a routed codex event with feedback ID, got %#v", events)
+	}
+}
+
 func TestRunHookAdapter_MalformedJSON_FailOpen(t *testing.T) {
 	out := captureStdout(func() {
 		rc := runHookAdapter(
@@ -313,5 +345,96 @@ func TestRunHookAdapter_OversizedPayload_FailOpen(t *testing.T) {
 	})
 	if !strings.Contains(out, `"permissionDecision":"allow"`) {
 		t.Errorf("oversized payload must print allow; got:\n%s", out)
+	}
+}
+
+func TestRunFeedbackRecordsHarnessAgnosticOutcome(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	store := training.NewEventStore(training.DefaultEventsPath())
+	if err := store.Record(training.Event{ID: "route-test", Harness: "cursor", SelectedTier: core.TierSmall}); err != nil {
+		t.Fatal(err)
+	}
+	if rc := runFeedback([]string{"route-test", "success", "--required-tier=SMALL"}); rc != 0 {
+		t.Fatalf("runFeedback() = %d, want 0", rc)
+	}
+	events, err := training.NewEventStore(training.DefaultEventsPath()).Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 || events[0].Outcome == nil || !events[0].Outcome.Success || events[0].Outcome.RequiredTier == nil || *events[0].Outcome.RequiredTier != core.TierSmall {
+		t.Fatalf("feedback event = %#v", events)
+	}
+	stats := captureStdout(func() {
+		if rc := runFeedback([]string{"stats"}); rc != 0 {
+			t.Fatalf("feedback stats rc = %d", rc)
+		}
+	})
+	if !strings.Contains(stats, "cursor") || !strings.Contains(stats, "Success") {
+		t.Fatalf("feedback stats missing harness outcome: %s", stats)
+	}
+}
+
+func TestRunFeedbackRejectsInvalidRetry(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	store := training.NewEventStore(training.DefaultEventsPath())
+	if err := store.Record(training.Event{ID: "route-mid", Harness: "codex", SelectedTier: core.TierMid}); err != nil {
+		t.Fatal(err)
+	}
+	if rc := runFeedback([]string{"route-mid", "retry", "--retry-tier=MID"}); rc == 0 {
+		t.Fatal("retry at the same tier should be rejected")
+	}
+}
+
+func TestFeedbackEventStoreUsesSeparateLoopLog(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	if filepath.Base(training.DefaultEventsPath()) != "loop-events.jsonl" {
+		t.Fatalf("loop event file is not isolated from routing stats: %s", training.DefaultEventsPath())
+	}
+}
+
+func TestEngineeringLoopEndToEnd(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	frontierID := cmdCat.ModelFor("codex", core.TierFrontier).ID
+	event := []byte(`{"hook_event_name":"PreToolUse","tool_name":"spawn_agent","model":"` + frontierID + `","tool_input":{"message":"rename the userId variable"}}`)
+	captureStdout(func() {
+		if rc := runHookAdapter(
+			bytes.NewReader(event),
+			func(b []byte) (codex.Event, error) { var e codex.Event; return e, json.Unmarshal(b, &e) },
+			func(e codex.Event) (any, string, core.Decision) { return codex.Handle(e, cmdCat) },
+			printCodexAllow,
+			func(e codex.Event) string { return e.TaskText() },
+		); rc != 0 {
+			t.Fatalf("hook rc = %d", rc)
+		}
+	})
+	events, err := training.NewEventStore(training.DefaultEventsPath()).Load()
+	if err != nil || len(events) != 1 {
+		t.Fatalf("events = %d, err = %v", len(events), err)
+	}
+	if rc := runFeedback([]string{events[0].ID, "success", "--required-tier=SMALL"}); rc != 0 {
+		t.Fatalf("feedback rc = %d", rc)
+	}
+
+	candidate := filepath.Join(t.TempDir(), "candidate.json")
+	result, err := training.TrainFromEvents(training.DefaultEventsPath(), training.DefaultTrainConfig())
+	if err != nil || result.Weights == nil {
+		t.Fatalf("TrainFromEvents result=%+v err=%v", result, err)
+	}
+	if err := classifier.SaveWeights(result.Weights, candidate); err != nil {
+		t.Fatal(err)
+	}
+	dataset := filepath.Join(t.TempDir(), "holdout.json")
+	contents := `[{"prompt":"rename a local variable","label":"SMALL"},{"prompt":"implement a CSV export feature","label":"MID"},{"prompt":"rearchitect authentication across services","label":"FRONTIER"}]`
+	if err := os.WriteFile(dataset, []byte(contents), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	output := captureStdout(func() {
+		if rc := runBenchmark([]string{dataset, "--compare", "--candidate-weights=" + candidate}); rc != 0 {
+			t.Fatalf("benchmark rc = %d", rc)
+		}
+	})
+	if !strings.Contains(output, "Candidate weights:") {
+		t.Fatalf("candidate was not evaluated: %s", output)
 	}
 }

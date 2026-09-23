@@ -15,6 +15,13 @@ import (
 
 var cat = catalog.Load()
 
+func TestEventTaskText(t *testing.T) {
+	ev := codex.Event{ToolInput: json.RawMessage(`{"message":"private task","task_name":"security review"}`)}
+	if got := ev.TaskText(); got != "private task security review" {
+		t.Fatalf("TaskText() = %q", got)
+	}
+}
+
 func catID(tier core.Tier) string {
 	return cat.ModelFor("codex", tier).ID
 }
