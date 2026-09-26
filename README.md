@@ -41,10 +41,10 @@ curl -fsSL https://raw.githubusercontent.com/tiagovilasboas/harness-downshift/ma
 **Step 2 — Verify the classifier** on your own prompts before wiring the hook:
 ```bash
 downshift try "rename the userId variable" claude-code
-# → TRIVIAL task → downshift to claude-haiku-4 (~95% cheaper)
+# → TRIVIAL task → use claude-haiku-4-5 (small tier)
 
 downshift try "rearchitect the auth module to support multi-tenant" claude-code
-# → COMPLEX task → upshift to claude-opus-4-8 (frontier tier)
+# → COMPLEX task → use claude-opus-4-8 (frontier tier)
 ```
 
 **Step 3 — Add the hook** to `~/.claude/settings.json`:
@@ -60,7 +60,7 @@ downshift try "rearchitect the auth module to support multi-tenant" claude-code
 
 **Step 4 — Confirm it's working.** Open Claude Code, ask it to spawn a subagent for a trivial task. You'll see this in the terminal:
 ```
-downshift: TRIVIAL task → downshift to claude-haiku-4 (~95% cheaper)
+downshift: TRIVIAL task → downshift to claude-haiku-4-5 (~80% cheaper)
 ```
 
 That line in stderr means the hook fired and rewrote the model before the subagent started.
@@ -82,7 +82,7 @@ the model's reasoning; it engineers the **delegation layer** — the exact point
 where a subagent's model is chosen — to optimize three things at once:
 
 - **Token efficiency** — cheap models for cheap work; frontier tokens spent only where they earn it.
-- **Cost reduction** — trivial subagents drop from frontier to small tier (~95% cheaper per call, based on published list prices: haiku-class ~$0.80/1M tokens vs opus-class ~$15/1M). Session-level savings depend on your task mix — see [Cost evidence](#cost-evidence).
+- **Cost reduction** — trivial subagents drop from frontier to small tier (~80% cheaper per call, based on published list prices: claude-haiku-4-5 $1/$5 vs claude-opus-4-8 $5/$25 per 1M input/output tokens). Session-level savings depend on your task mix — see [Cost evidence](#cost-evidence).
 - **Control & predictability** — deterministic, rule-based routing you can read, test, and audit. No "Auto" black box, no LLM guessing in the loop.
 
 Agent = Model + Harness. You can't cheaply swap the model. You *can* engineer
@@ -94,11 +94,11 @@ the harness. That's the whole game here.
 
 Agentic coding got expensive fast, and the biggest line item is invisible:
 **subagents**. When your main agent spawns a subagent to explore a folder, run
-tests, or read files, that subagent inherits the session's model. So a $15/1M
-frontier model ends up grepping a directory — work a $0.80/1M model finishes
+tests, or read files, that subagent inherits the session's model. So a $5/1M
+frontier model ends up grepping a directory — work a $1/1M model finishes
 identically.
 
-Studies put subagent spend at up to **85% of a heavy session**. The fix is
+The fix is
 known — route each subagent to the cheapest model that can do its job — but
 nobody wants to babysit model selection on every spawn.
 
@@ -146,9 +146,9 @@ Task:       rename the userId variable across auth.ts
 Complexity: TRIVIAL
 Intent:     trivial
 Needs tier: small
-Recommend:  claude-haiku-4
-Verdict:    DOWNSHIFT
-→ TRIVIAL task → downshift to claude-haiku-4 (~95% cheaper)
+Recommend:  claude-haiku-4-5
+Verdict:    UNKNOWN
+→ TRIVIAL task → use claude-haiku-4-5 (small tier)
 ```
 
 ---
@@ -388,24 +388,6 @@ cp candidate.json ~/.harness-downshift/weights.json
 
 Labels: `SMALL`, `MID`, `FRONTIER`. Features are extracted automatically if absent.
 
-### Benchmark output (`--compare`)
-
-```
-Benchmark: Legacy vs Capability Router v2
-Dataset: 120 tasks
-
-                              Legacy        v2     Delta
-Tier accuracy                  78.3%     85.0%    +6.7%
-Unsafe downgrade               12.5%      4.2%    -8.3%  ✓
-  FRONTIER → SMALL              4.2%      0.0%    -4.2%  ✓
-  FRONTIER → MID                8.3%      4.2%    -4.1%  ✓
-Over-routing                   10.0%     14.2%    +4.2%
-Risk-weighted loss             0.182     0.089    -0.093 ✓
-
-Recommendation: Capability v2 reduces unsafe downgrades significantly.
-                Accept slightly higher over-routing for safety gain.
-```
-
 The go/no-go criterion: **`FRONTIER→SMALL` must fall vs legacy**. Everything else is secondary.
 
 ### Privacy-first event collection
@@ -554,11 +536,13 @@ hard.
 
 | Model | Input ($/1M tokens) | Output ($/1M tokens) |
 |---|---|---|
-| claude-haiku-4 (small tier) | ~$0.80 | ~$4 |
-| claude-sonnet-4 (mid tier) | ~$3 | ~$15 |
-| claude-opus-4 (frontier tier) | ~$15 | ~$75 |
+| claude-haiku-4-5 (small tier) | $1 | $5 |
+| claude-sonnet-4-6 (mid tier) | $3 | $15 |
+| claude-opus-4-8 (frontier tier) | $5 | $25 |
 
-A single frontier subagent call grepping a directory is roughly 19× more
+Source: [Anthropic pricing](https://docs.anthropic.com/en/docs/about-claude/pricing), accessed 2026-09-26.
+
+A single frontier subagent call grepping a directory is roughly 5× more
 expensive than the same call on haiku. That's the raw per-call case.
 
 **Session-level savings depend on your task mix.** After running downshift
@@ -810,7 +794,7 @@ that actually need it.
   Enterprise Agentic AI](https://arxiv.org/abs/2607.06906)** — names the harness
   as the decisive lever against token maxing.
 - **[Triage: Routing Software Engineering Tasks to Cost-Effective LLM Tiers](https://arxiv.org/abs/2604.07494)**
-  — evidence that task signals can pick a cheaper tier without losing quality.
+  — proposes routing tasks to cheaper model tiers using code-health signals, with an evaluation protocol; it reports no measured routing results.
 - **[claude-model-router-hook](https://github.com/tzachbon/claude-model-router-hook)**
   by tzachbon — a Claude-Code-only router that showed the `PreToolUse`
   `updatedInput` mechanism works. `harness-downshift` generalizes the idea
