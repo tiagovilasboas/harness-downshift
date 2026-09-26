@@ -19,13 +19,13 @@ func TestStringField(t *testing.T) {
 	}{
 		{
 			name: "present string value",
-			m:    map[string]any{"model": "claude-haiku-4"},
+			m:    map[string]any{"model": "claude-haiku-4-5"},
 			key:  "model",
-			want: "claude-haiku-4",
+			want: "claude-haiku-4-5",
 		},
 		{
 			name: "absent key returns empty",
-			m:    map[string]any{"model": "claude-haiku-4"},
+			m:    map[string]any{"model": "claude-haiku-4-5"},
 			key:  "prompt",
 			want: "",
 		},

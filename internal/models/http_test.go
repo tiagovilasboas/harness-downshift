@@ -70,7 +70,7 @@ func anthropicResponse(ids ...string) string {
 
 func TestCheck_DetectsKnownAndNewModels(t *testing.T) {
 	// Anthropic returns one known model + one new model (not in any known family).
-	anthropicSrv := serveModels(t, anthropicResponse("claude-haiku-4", "claude-phoenix-1-new"))
+	anthropicSrv := serveModels(t, anthropicResponse("claude-haiku-4-5", "claude-phoenix-1-new"))
 	defer anthropicSrv.Close()
 
 	// OpenAI returns only known models (no new).
@@ -180,7 +180,7 @@ func TestCheck_FiltersInternalModels(t *testing.T) {
 
 func TestCheck_AnthropicModelsEnvelope(t *testing.T) {
 	// Anthropic uses {"models":[...]} not {"data":[...]}
-	srv := serveModels(t, anthropicResponse("claude-haiku-4", "claude-nova-brand-new"))
+	srv := serveModels(t, anthropicResponse("claude-haiku-4-5", "claude-nova-brand-new"))
 	defer srv.Close()
 
 	t.Setenv("ANTHROPIC_API_KEY", "test-key")

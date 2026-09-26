@@ -745,7 +745,7 @@ Grok note:
 
 Examples:
   downshift try "rename the variable userId"
-  downshift try "rearchitect the payment flow" cursor claude-haiku-4
+  downshift try "rearchitect the payment flow" cursor claude-haiku-4-5
   downshift try "add a subagent to scan for secrets" codex gpt-5.6-sol
   downshift try "explore the auth module" grok
   downshift stats
