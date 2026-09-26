@@ -11,8 +11,9 @@
 #   # Specific version:
 #   curl -fsSL https://raw.githubusercontent.com/tiagovilasboas/harness-downshift/main/install.sh | sh -s v0.1.0-beta.1
 #
-# The binary is installed to /usr/local/bin/downshift (or ~/bin/downshift if
-# /usr/local/bin is not writable without sudo).
+# The binary is installed to /usr/local/bin/downshift (or ~/.local/bin or
+# ~/bin if /usr/local/bin is not writable without sudo). Set
+# DOWNSHIFT_INSTALL_DIR to choose another directory.
 
 set -e
 
@@ -20,13 +21,22 @@ REPO="tiagovilasboas/harness-downshift"
 BINARY="downshift"
 
 # ── Resolve version ───────────────────────────────────────────────────────────
+# /releases/latest ignores prereleases and returns 404 while only betas exist,
+# so fall back to the newest entry of /releases (which includes prereleases).
+API="https://api.github.com/repos/${REPO}"
+tag_name() {
+  grep '"tag_name"' | head -n 1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/'
+}
 VERSION="${1:-}"
 if [ -z "$VERSION" ]; then
-  VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
-    | grep '"tag_name"' | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')
+  VERSION=$(curl -fsSL "${API}/releases/latest" 2>/dev/null | tag_name || true)
 fi
 if [ -z "$VERSION" ]; then
-  echo "error: could not determine latest version. Pass a version explicitly:" >&2
+  VERSION=$(curl -fsSL "${API}/releases?per_page=1" 2>/dev/null | tag_name || true)
+fi
+if [ -z "$VERSION" ]; then
+  echo "error: could not determine latest version (no release found, or GitHub API unreachable or rate-limited)." >&2
+  echo "Pass a version explicitly:" >&2
   echo "  sh install.sh v0.1.0-beta.1" >&2
   exit 1
 fi
@@ -62,7 +72,10 @@ ARCHIVE="downshift_${VER}_${OS}_${ARCH}.tar.gz"
 URL="https://github.com/${REPO}/releases/download/${VERSION}/${ARCHIVE}"
 
 # ── Choose install dir ────────────────────────────────────────────────────────
-if [ -w "/usr/local/bin" ]; then
+if [ -n "${DOWNSHIFT_INSTALL_DIR:-}" ]; then
+  INSTALL_DIR="$DOWNSHIFT_INSTALL_DIR"
+  mkdir -p "$INSTALL_DIR"
+elif [ -w "/usr/local/bin" ]; then
   INSTALL_DIR="/usr/local/bin"
 elif [ -d "$HOME/.local/bin" ]; then
   INSTALL_DIR="$HOME/.local/bin"
