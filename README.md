@@ -141,14 +141,15 @@ the spawn details to `downshift`, which:
 The main session keeps the model you chose. Only the subagents get right-sized.
 
 ```
-$ downshift try "rename the userId variable across auth.ts"
+$ downshift try "rename the userId variable across auth.ts" claude-code claude-opus-4-8
 Task:       rename the userId variable across auth.ts
 Complexity: TRIVIAL
 Intent:     trivial
 Needs tier: small
 Recommend:  claude-haiku-4-5
-Verdict:    UNKNOWN
-→ TRIVIAL task → use claude-haiku-4-5 (small tier)
+Current:    claude-opus-4-8
+Verdict:    DOWNSHIFT
+→ TRIVIAL task → downshift to claude-haiku-4-5 (~80% cheaper)
 ```
 
 ---
