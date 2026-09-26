@@ -69,7 +69,7 @@
   <line x1="52" y1="458" x2="560" y2="458" stroke="#21262d" stroke-width="1"/>
 
   <!-- Bottom stat -->
-  <text x="52" y="490" fill="#3fb950" font-size="28" font-weight="700">~95% cheaper</text>
+  <text x="52" y="490" fill="#3fb950" font-size="28" font-weight="700">~80% cheaper</text>
   <text x="52" y="516" fill="#6e7681" font-size="15">on trivial subagents running frontier models</text>
 
   <!-- GitHub URL -->
@@ -101,7 +101,7 @@
   <text x="880" y="126" fill="#3fb950" font-size="13" font-weight="600">small · low effort</text>
   <text x="880" y="148" fill="#6e7681" font-size="11">claude-haiku / gpt-5.6-luna / grok</text>
   <!-- Price + arrow -->
-  <text x="1148" y="130" fill="#6e7681" font-size="13" text-anchor="end">$0.15–0.80</text>
+  <text x="1148" y="130" fill="#6e7681" font-size="13" text-anchor="end">$0.15–1.00</text>
   <text x="1160" y="148" fill="#3fb950" font-size="20" text-anchor="end">▼</text>
 
   <!-- Row 2 — SIMPLE / MEDIUM -->
@@ -124,7 +124,7 @@
   <text x="690" y="388" fill="#8b949e" font-size="12">rearchitect · migrate · race condition · RFC</text>
   <text x="880" y="366" fill="#f85149" font-size="13" font-weight="600">frontier · high effort</text>
   <text x="880" y="388" fill="#6e7681" font-size="11">claude-opus / gpt-5.6-sol</text>
-  <text x="1148" y="370" fill="#6e7681" font-size="13" text-anchor="end">$10–15.00</text>
+  <text x="1148" y="370" fill="#6e7681" font-size="13" text-anchor="end">$2–5.00</text>
   <text x="1160" y="388" fill="#f85149" font-size="20" text-anchor="end">▲</text>
 
   <!-- install snippet -->

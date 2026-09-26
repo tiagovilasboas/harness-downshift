@@ -3,14 +3,15 @@
   "_doc2": "Override at ~/.harness-downshift/catalog.json. Run 'downshift models pull' to refresh.",
   "_doc3": "'family' is the stable prefix for version-agnostic matching. A model whose ID starts with the family string matches this entry's tier even if the exact version is unknown.",
   "_doc4": "OpenRouter model IDs arrive as 'provider/model-id' (e.g. 'anthropic/claude-opus-4-8'). The router normalises these before lookup, so family matching works transparently.",
+  "_doc5": "Anthropic IDs and base input/output prices per 1M tokens: https://docs.anthropic.com/en/docs/about-claude/models/overview and https://docs.anthropic.com/en/docs/about-claude/pricing (accessed 2026-09-26).",
   "version": "2",
-  "updated": "2026-09-20",
+  "updated": "2026-09-26",
   "entries": [
 
     { "_section": "claude-code — native Anthropic models" },
 
     {
-      "id": "claude-haiku-4",
+      "id": "claude-haiku-4-5",
       "aliases": ["claude-haiku"],
       "family": "claude-haiku",
       "provider": "anthropic",
@@ -18,8 +19,8 @@
       "tier": "small",
       "effort_scale": "thinking_budget",
       "effort_map": { "low": "0", "medium": "5000", "high": "10000" },
-      "input_cost_per_1m": 0.80,
-      "output_cost_per_1m": 4.00
+      "input_cost_per_1m": 1.00,
+      "output_cost_per_1m": 5.00
     },
     {
       "id": "claude-sonnet-4-6",
@@ -42,8 +43,8 @@
       "tier": "frontier",
       "effort_scale": "thinking_budget",
       "effort_map": { "low": "0", "medium": "10000", "high": "20000" },
-      "input_cost_per_1m": 15.00,
-      "output_cost_per_1m": 75.00
+      "input_cost_per_1m": 5.00,
+      "output_cost_per_1m": 25.00
     },
 
     { "_section": "claude-code — xAI Grok (installed via custom model config)" },
@@ -64,7 +65,7 @@
     { "_section": "cursor — native Anthropic models" },
 
     {
-      "id": "claude-haiku-4",
+      "id": "claude-haiku-4-5",
       "aliases": ["claude-haiku"],
       "family": "claude-haiku",
       "provider": "anthropic",
@@ -72,8 +73,8 @@
       "tier": "small",
       "effort_scale": "thinking_budget",
       "effort_map": { "low": "0", "medium": "5000", "high": "10000" },
-      "input_cost_per_1m": 0.80,
-      "output_cost_per_1m": 4.00
+      "input_cost_per_1m": 1.00,
+      "output_cost_per_1m": 5.00
     },
     {
       "id": "claude-sonnet-4.6",
@@ -96,8 +97,8 @@
       "tier": "frontier",
       "effort_scale": "thinking_budget",
       "effort_map": { "low": "0", "medium": "10000", "high": "20000" },
-      "input_cost_per_1m": 15.00,
-      "output_cost_per_1m": 75.00
+      "input_cost_per_1m": 5.00,
+      "output_cost_per_1m": 25.00
     },
 
     { "_section": "cursor — xAI Grok (installed via model picker)" },

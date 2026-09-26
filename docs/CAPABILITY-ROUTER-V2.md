@@ -365,6 +365,8 @@ Labels: `SMALL`, `MID`, `FRONTIER` (tier, não complexity)
 
 ### 7.3 Output
 
+> Saída ilustrativa (só o formato): o repositório não inclui um dataset de 120 tarefas e estes números não são resultados medidos.
+
 ```
 Training capability-router v2
 
@@ -403,6 +405,8 @@ downshift benchmark <dataset.json> --compare
 ```
 
 ### 8.2 Output
+
+> Saída ilustrativa (só o formato): o repositório não inclui um dataset de 120 tarefas e estes números não são resultados medidos.
 
 ```
 Benchmark: Legacy vs Capability Router v2

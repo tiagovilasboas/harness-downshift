@@ -297,6 +297,25 @@ func TestSavingsRatio_CheaperTarget(t *testing.T) {
 	}
 }
 
+// The README cost claims (Quickstart "~80% cheaper" and the Cost evidence
+// table) are computed from these embedded entries. If a price changes, this
+// test fails so the README numbers are recomputed in the same change.
+func TestEmbeddedClaudeCodeSavingsMatchesREADME(t *testing.T) {
+	c, err := parse(embeddedJSON)
+	if err != nil {
+		t.Fatal(err)
+	}
+	frontier := c.ModelFor("claude-code", core.TierFrontier)
+	small := c.ModelFor("claude-code", core.TierSmall)
+	if frontier.ID != "claude-opus-4-8" || small.ID != "claude-haiku-4-5" {
+		t.Fatalf("claude-code frontier/small = %s/%s, want claude-opus-4-8/claude-haiku-4-5", frontier.ID, small.ID)
+	}
+	// (5+25 - (1+5)) / (5+25) = 0.80
+	if got := c.SavingsRatio(frontier, small); got < 0.7999 || got > 0.8001 {
+		t.Errorf("SavingsRatio(frontier→small) = %.4f, want 0.80 (README says ~80%%)", got)
+	}
+}
+
 func TestSavingsRatio_MoreExpensiveTarget(t *testing.T) {
 	c := Load()
 	small := c.ModelFor("claude-code", core.TierSmall)
