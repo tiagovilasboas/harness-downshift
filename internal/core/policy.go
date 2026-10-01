@@ -93,7 +93,7 @@ func Route(prompt, harness, currentModelID string, r ...Resolver) Decision {
 		res = r[0]
 	}
 
-	tier, cls, graphEscalated, confident := classifyTask(prompt)
+	tier, cls, graphEscalated := classifyTask(prompt)
 	effort := EffortFor(tier)
 	recommended := resolveModel(harness, tier, res)
 	verdict, savings, current := compareToCurrentModel(harness, currentModelID, recommended, res)
@@ -107,7 +107,7 @@ func Route(prompt, harness, currentModelID string, r ...Resolver) Decision {
 		CurrentModel:   current,
 		Verdict:        verdict,
 		Savings:        savings,
-		Confident:      confident,
+		Confident:      Classify(prompt).Confident,
 		GraphEscalated: graphEscalated,
 	}
 	d.Intent = IntentFor(prompt, Classify(prompt), d, res)
@@ -123,28 +123,12 @@ func Route(prompt, harness, currentModelID string, r ...Resolver) Decision {
 	return d
 }
 
-// classifyTask scores the prompt and returns the target tier, complexity,
-// graphify escalation flag, and confidence.
+// classifyTask scores the prompt and returns the target tier and complexity.
 // Returns (escalated bool) as third return value to track if graphify triggered.
-//
-// Cascade: regex first (Classify). When the regex is confident, its answer
-// stands. When it is not confident and DOWNSHIFT_DISTIL_URL is set, the
-// DistilBERT sidecar gets the tiebreak (distilClassify). Any sidecar failure
-// falls back to the v1 regex result — fail-open, never block a spawn.
-func classifyTask(prompt string) (Tier, Complexity, bool, bool) {
+func classifyTask(prompt string) (Tier, Complexity, bool) {
 	cls := Classify(prompt)
 	complexity := cls.Complexity
-	confident := cls.Confident
 	escalated := false
-
-	// Middle layer: DistilBERT sidecar breaks regex ties before the
-	// graphify safety net runs.
-	if !confident {
-		if dc, _, ok := distilClassify(prompt); ok {
-			complexity = dc
-			confident = true
-		}
-	}
 
 	// Graphify escalation: if the text classifier is uncertain but the prompt
 	// mentions critical files/symbols, escalate to Complex for safer handling.
@@ -157,7 +141,7 @@ func classifyTask(prompt string) (Tier, Complexity, bool, bool) {
 		}
 	}
 
-	return complexity.Tier(), complexity, escalated, confident
+	return complexity.Tier(), complexity, escalated
 }
 
 // resolveModel returns the catalog model for the given harness and tier.
