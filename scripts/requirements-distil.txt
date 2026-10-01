@@ -1,0 +1,4 @@
+transformers>=4.40
+torch>=2.2
+datasets>=2.18
+scikit-learn>=1.4
